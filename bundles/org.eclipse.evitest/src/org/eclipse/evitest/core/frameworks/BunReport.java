@@ -31,6 +31,8 @@ final class BunReport extends JUnitReport {
       "^(?:\\((pass|fail|skip|todo)\\)|([✓✗»✎]))\\s*(.*?)(?: \\[[\\d.]+m?s\\])?$");
   private static final Pattern FILE = Pattern.compile("^(\\S.*\\.[cm]?[jt]sx?):$");
   private static final String UNHANDLED = "# Unhandled error between tests";
+  private static final String GROUP = "::group::";
+  private static final Pattern WORKFLOW_COMMAND = Pattern.compile("^::(?:endgroup|error|warning|notice|debug)\\b.*$");
   /** The name of the test standing for a failed hook (beforeAll...). */
   private static final String HOOK = "(unnamed)";
   private static final String SEE_THE_CONSOLE = "The test failed: see the console for its error.";
@@ -165,7 +167,12 @@ final class BunReport extends JUnitReport {
       List<String> block = new ArrayList<>();
       List<String> unhandledBlock = null;
       int dashes = 0;
-      for (String line : console.split("\\R", -1)) {
+      for (String outputLine : console.split("\\R", -1)) {
+        // On GitHub Actions, Bun writes workflow commands: ::group::file.test.ts:, ::endgroup::, ::error ...
+        if (WORKFLOW_COMMAND.matcher(outputLine).matches()) {
+          continue;
+        }
+        String line = outputLine.startsWith(GROUP) ? outputLine.substring(GROUP.length()) : outputLine;
         if (unhandledBlock != null) {
           if (line.matches("^-{5,}$")) {
             dashes++;

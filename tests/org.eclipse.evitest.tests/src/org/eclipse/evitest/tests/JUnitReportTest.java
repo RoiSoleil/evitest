@@ -225,6 +225,36 @@ class JUnitReportTest {
   }
 
   @Test
+  void bunOnGitHubActions() {
+    // Bun writes workflow commands when it runs on GitHub Actions.
+    String output = """
+        ::group::src/broken.test.ts:
+
+        # Unhandled error between tests
+        -------------------------------
+        error: Unexpected end of file
+            at /p/src/broken.test.ts:4:28
+        -------------------------------
+        ::endgroup::
+        ::group::src/math.test.ts:
+        TypeError: boom
+              at <anonymous> (/p/src/math.test.ts:27:29)
+        ::error file=src/math.test.ts,line=27,col=29,title=throws::TypeError: boom
+        (fail) throws [0.04ms]
+        ::endgroup::
+        """;
+    FakeSession session = handle(JUnitReport.toEvents(TestFramework.BUN, null, ROOT, BUN_XML, output, null));
+    assertTrue(session.log.contains("failed src/broken.test.ts ERROR"), session.log.toString());
+    assertFalse(session.log.stream().anyMatch(line -> line.contains("::")), session.log.toString());
+    String trace = session.element("src/math.test.ts > throws").getFailureTrace().getTrace();
+    assertTrue(trace.startsWith("TypeError: boom"), trace);
+    assertFalse(trace.contains("::error"), trace);
+    // Without a report.
+    FakeSession broken = handle(JUnitReport.toEvents(TestFramework.BUN, null, ROOT, null, output, null));
+    assertTrue(broken.log.contains("failed src/broken.test.ts ERROR"), broken.log.toString());
+  }
+
+  @Test
   void bunWithoutAReport() {
     // Bun writes no report when no test file can be loaded.
     String output = """
