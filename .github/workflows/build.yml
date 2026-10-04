@@ -32,11 +32,24 @@ jobs:
          uses: actions/setup-node@v7
          with:
             node-version: 22
-      -  name: Install the fixture of the end to end tests
-         # The end to end tests run the real Vitest of this project with the reporter of EVitest.
-         working-directory: tests/org.eclipse.evitest.tests/fixture
-         run: npm ci
+      -  name: Set up Bun
+         uses: oven-sh/setup-bun@v2
+      -  name: Set up Deno
+         uses: denoland/setup-deno@v2
+         with:
+            deno-version: v2.x
+      -  name: Install the fixtures of the end to end tests
+         # The end to end tests run the real frameworks of these projects with the reporters of EVitest:
+         # Vitest, Jest, Mocha, Jasmine and Playwright Test from npm; node:test, Bun and Deno need no install.
+         working-directory: tests/org.eclipse.evitest.tests/fixtures
+         run: |
+            for fixture in vitest jest mocha jasmine playwright; do
+               (cd "$fixture" && npm ci)
+            done
       -  name: Build
+         env:
+            # All the frameworks are installed: their end to end tests must not be skipped.
+            EVITEST_REQUIRE_FRAMEWORKS: true
          run: xvfb-run -a mvn -B clean install
       -  name: Upload coverage to Codecov
          if: always()

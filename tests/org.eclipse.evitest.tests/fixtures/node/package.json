@@ -1,0 +1,9 @@
+{
+  "name": "evitest-fixture-node",
+  "private": true,
+  "description": "The node:test project run by the end to end tests of EVitest: no dependencies.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

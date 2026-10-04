@@ -49,11 +49,16 @@ public class Activator extends AbstractUIPlugin {
     return getDefault().getImageRegistry().getDescriptor(path);
   }
 
-  /** The reporter of EVitest, extracted from the bundle if it is a jar. */
+  /** The reporter of EVitest for Vitest, extracted from the bundle if it is a jar. */
   public static File getReporterFile() throws IOException {
-    URL url = getDefault().getBundle().getEntry("reporter/evitest-reporter.mjs");
+    return new File(getReporterFolder(), "evitest-reporter.mjs");
+  }
+
+  /** The folder of the reporters of EVitest (they require each other), extracted from the bundle if it is a jar. */
+  public static File getReporterFolder() throws IOException {
+    URL url = getDefault().getBundle().getEntry("reporter/");
     if (url == null) {
-      throw new IOException("The reporter of EVitest is missing from its bundle");
+      throw new IOException("The reporters of EVitest are missing from their bundle");
     }
     try {
       // URIUtil: the URL of FileLocator is not encoded (spaces), and its path starts with a slash on Windows (/C:/).

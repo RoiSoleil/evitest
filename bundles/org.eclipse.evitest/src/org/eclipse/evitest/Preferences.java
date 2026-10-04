@@ -12,9 +12,13 @@ public class Preferences extends AbstractPreferenceInitializer {
 
   /** The Node.js executable, empty to search it. */
   public static final String NODE_PATH = "nodePath";
+  /** The Bun executable, empty to search it. */
+  public static final String BUN_PATH = "bunPath";
+  /** The Deno executable, empty to search it. */
+  public static final String DENO_PATH = "denoPath";
   /** The names of the test files, globs separated by commas. */
   public static final String TEST_FILES = "testFiles";
-  /** Additional arguments of Vitest for all the launches. */
+  /** Additional arguments of Vitest for all its launches. */
   public static final String ARGUMENTS = "arguments";
   /** Colors in the console (FORCE_COLOR). */
   public static final String COLORS = "colors";
@@ -25,6 +29,8 @@ public class Preferences extends AbstractPreferenceInitializer {
   public void initializeDefaultPreferences() {
     IEclipsePreferences defaults = DefaultScope.INSTANCE.getNode(Activator.PLUGIN_ID);
     defaults.put(NODE_PATH, "");
+    defaults.put(BUN_PATH, "");
+    defaults.put(DENO_PATH, "");
     defaults.put(TEST_FILES, TestFilePatterns.DEFAULT);
     defaults.put(ARGUMENTS, "");
     defaults.putBoolean(COLORS, true);

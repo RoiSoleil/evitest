@@ -1,0 +1,5 @@
+{
+  "name": "evitest-fixture-bun",
+  "private": true,
+  "description": "The bun test project run by the end to end tests of EVitest: no dependencies."
+}

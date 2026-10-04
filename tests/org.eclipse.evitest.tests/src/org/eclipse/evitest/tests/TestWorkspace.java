@@ -1,7 +1,5 @@
 package org.eclipse.evitest.tests;
 
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
-
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -19,7 +17,7 @@ import org.eclipse.debug.core.DebugPlugin;
 import org.eclipse.debug.core.ILaunch;
 import org.eclipse.debug.core.ILaunchConfiguration;
 import org.eclipse.debug.core.ILaunchManager;
-import org.eclipse.evitest.core.NodeLocator;
+import org.eclipse.evitest.core.TestFramework;
 import org.eclipse.evitest.launch.VitestLaunchConstants;
 
 /**
@@ -35,14 +33,11 @@ public class TestWorkspace {
   }
 
   /**
-   * The fixture of the end to end tests as a project of the workspace, skipped without Node.js and the dependencies of
-   * the fixture ({@code npm ci} in {@code fixture}). Its .project is deleted by {@link #deleteProjects()}.
+   * The fixture of a framework (see {@link Fixtures}) as a project of the workspace, skipped if the framework is not
+   * installed. Its .project is deleted by {@link #deleteProjects()}.
    */
-  public static IProject createFixtureProject(String name) throws CoreException {
-    File fixture = new File(System.getProperty("evitest.fixture", "fixture")).getAbsoluteFile();
-    assumeTrue(new File(fixture, "node_modules/vitest/vitest.mjs").isFile(),
-        "The fixture has no node_modules: run npm ci in " + fixture);
-    assumeTrue(NodeLocator.find(System.getenv()) != null, "Node.js was not found");
+  public static IProject createFixtureProject(String name, TestFramework framework) throws CoreException {
+    File fixture = Fixtures.fixture(framework);
     IWorkspace workspace = ResourcesPlugin.getWorkspace();
     IProject project = workspace.getRoot().getProject(name);
     IProjectDescription description = workspace.newProjectDescription(name);

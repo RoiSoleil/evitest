@@ -108,6 +108,10 @@ public class VitestTestViewSupport implements ITestViewSupport {
       copy.setAttribute(VitestLaunchConstants.ATTR_SELECTORS, wholeFiles ? null : selectors);
       copy.setAttribute(VitestLaunchConstants.ATTR_NAME_PATTERN, (String) null);
       copy.setAttribute(VitestLaunchConstants.ATTR_ROOT, rootOfConfiguration(launch, configuration));
+      if (configuration.getAttribute(VitestLaunchConstants.ATTR_FRAMEWORK, "").isEmpty()) {
+        // The framework of the run: the tests of the rerun may not tell it (a folder of tests of several frameworks).
+        copy.setAttribute(VitestLaunchConstants.ATTR_FRAMEWORK, launch.getAttribute(VitestLaunchConstants.LAUNCH_FRAMEWORK));
+      }
       return copy;
     } catch (CoreException e) {
       Activator.log(e.getStatus());
@@ -131,7 +135,7 @@ public class VitestTestViewSupport implements ITestViewSupport {
     return resource != null ? VitestLaunchSettings.toPath(resource) : file;
   }
 
-  /** The folder where Vitest ran the tests of the element, null if it is not known. */
+  /** The folder where the tests of the element ran, null if it is not known. */
   static String rootOf(ITestElement element) {
     ILaunch launch = element == null ? null : element.getTestRunSession().getLaunch();
     return launch == null ? null : launch.getAttribute(VitestLaunchConstants.LAUNCH_ROOT);
@@ -139,6 +143,6 @@ public class VitestTestViewSupport implements ITestViewSupport {
 
   @Override
   public String getDisplayName() {
-    return "Vitest";
+    return "EVitest";
   }
 }

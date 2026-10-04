@@ -21,17 +21,20 @@ import org.eclipse.debug.core.ILaunchConfiguration;
 import org.eclipse.debug.core.ILaunchManager;
 import org.eclipse.evitest.Activator;
 import org.eclipse.evitest.Preferences;
+import org.eclipse.evitest.core.FrameworkDetector;
+import org.eclipse.evitest.core.Installation;
 import org.eclipse.evitest.core.NodeLocator;
+import org.eclipse.evitest.core.TestFramework;
 import org.eclipse.evitest.core.TestSelector;
-import org.eclipse.evitest.core.VitestLocator;
 
 /**
- * The values of a Vitest launch configuration, resolved: files, root, installation of Vitest, Node.js...
+ * The values of a launch configuration of tests, resolved: files, framework, root, installation of the framework,
+ * Node.js...
  */
 public final class VitestLaunchSettings {
 
   private final File root;
-  private final VitestLocator.Installation installation;
+  private final Installation installation;
   private final File node;
   private final List<String> filters;
   private final List<TestSelector> selectors;
@@ -40,7 +43,7 @@ public final class VitestLaunchSettings {
   private final List<String> arguments;
   private final Map<String, String> environment;
 
-  private VitestLaunchSettings(File root, VitestLocator.Installation installation, File node, List<String> filters,
+  private VitestLaunchSettings(File root, Installation installation, File node, List<String> filters,
       List<TestSelector> selectors, String namePattern, boolean updateSnapshots, List<String> arguments,
       Map<String, String> environment) {
     this.root = root;
@@ -58,10 +61,15 @@ public final class VitestLaunchSettings {
     return root;
   }
 
-  public VitestLocator.Installation getInstallation() {
+  public Installation getInstallation() {
     return installation;
   }
 
+  public TestFramework getFramework() {
+    return installation.framework();
+  }
+
+  /** Node.js, null for the frameworks which do not run on it (Bun, Deno). */
   public File getNode() {
     return node;
   }
@@ -87,7 +95,7 @@ public final class VitestLaunchSettings {
     return arguments;
   }
 
-  /** The environment of Vitest: the one of Eclipse with the variables of the configuration. */
+  /** The environment of the tests: the one of Eclipse with the variables of the configuration. */
   public Map<String, String> getEnvironment() {
     return environment;
   }
@@ -103,12 +111,22 @@ public final class VitestLaunchSettings {
     }
     IProject project = getProject(configuration);
 
+    TestFramework chosen = TestFramework.fromId(configuration.getAttribute(VitestLaunchConstants.ATTR_FRAMEWORK, ""));
     File root;
+    TestFramework framework;
     String rootAttribute = substitute(configuration.getAttribute(VitestLaunchConstants.ATTR_ROOT, "")).trim();
     if (!rootAttribute.isEmpty()) {
       root = new File(rootAttribute);
       if (!root.isDirectory()) {
-        throw new CoreException(Activator.error("The folder of Vitest " + root + " does not exist.", null));
+        throw new CoreException(Activator.error("The folder of the tests " + root + " does not exist.", null));
+      }
+      framework = chosen;
+      if (framework == null) {
+        FrameworkDetector.Detection detection = FrameworkDetector.detect(!locations.isEmpty() ? locations.get(0) : root);
+        framework = detection == null ? null : detection.framework();
+      }
+      if (framework == null) {
+        throw new CoreException(Activator.error(noFramework(root), null));
       }
     } else {
       File start = !locations.isEmpty() ? locations.get(0)
@@ -116,36 +134,46 @@ public final class VitestLaunchSettings {
       if (start == null) {
         throw new CoreException(Activator.error("Choose the project or the tests to run.", null));
       }
-      root = VitestLocator.findRoot(start);
-      if (root == null) {
-        throw new CoreException(Activator.error("No Vitest project (vitest.config, vite.config or package.json) found for "
-            + start + ".", null));
+      if (chosen != null) {
+        framework = chosen;
+        root = FrameworkDetector.findRoot(chosen, start);
+      } else {
+        FrameworkDetector.Detection detection = FrameworkDetector.detect(start);
+        if (detection == null) {
+          throw new CoreException(Activator.error(noFramework(start), null));
+        }
+        framework = detection.framework();
+        root = detection.root();
       }
-    }
-
-    VitestLocator.Installation installation = VitestLocator.findInstallation(root);
-    if (installation == null) {
-      throw new CoreException(Activator.error("Vitest is not installed in " + root
-          + " (node_modules/vitest is missing): run npm install, pnpm install or yarn there.", null));
     }
 
     Map<String, String> environment = environment(configuration);
 
-    File node;
-    String nodeAttribute = substitute(configuration.getAttribute(VitestLaunchConstants.ATTR_NODE, "")).trim();
-    if (nodeAttribute.isEmpty()) {
-      nodeAttribute = substitute(Preferences.getString(Preferences.NODE_PATH)).trim();
+    Installation installation = Installation.find(framework, root, environment, executablePreference(framework));
+    if (installation == null) {
+      throw new CoreException(Activator.error(notInstalled(framework, root), null));
     }
-    if (!nodeAttribute.isEmpty()) {
-      node = new File(nodeAttribute);
-      if (!node.isFile()) {
-        throw new CoreException(Activator.error("Node.js " + node + " does not exist.", null));
+
+    File node = null;
+    if (framework.usesNode()) {
+      String nodeAttribute = substitute(configuration.getAttribute(VitestLaunchConstants.ATTR_NODE, "")).trim();
+      if (nodeAttribute.isEmpty()) {
+        nodeAttribute = substitute(Preferences.getString(Preferences.NODE_PATH)).trim();
       }
-    } else {
-      node = NodeLocator.find(environment);
-      if (node == null) {
-        throw new CoreException(Activator.error(
-            "Node.js was not found: set its location in Window > Preferences > EVitest.", null));
+      if (!nodeAttribute.isEmpty()) {
+        node = new File(nodeAttribute);
+        if (!node.isFile()) {
+          throw new CoreException(Activator.error("Node.js " + node + " does not exist.", null));
+        }
+      } else {
+        node = NodeLocator.find(environment);
+        if (node == null) {
+          throw new CoreException(Activator.error(
+              "Node.js was not found: set its location in Window > Preferences > EVitest.", null));
+        }
+      }
+      if (framework == TestFramework.NODE) {
+        installation = new Installation(framework, null, NodeLocator.version(node));
       }
     }
 
@@ -172,13 +200,38 @@ public final class VitestLaunchSettings {
     }
 
     List<String> arguments = new ArrayList<>();
-    arguments.addAll(Arrays.asList(DebugPlugin.parseArguments(substitute(Preferences.getString(Preferences.ARGUMENTS)))));
+    if (framework == TestFramework.VITEST) {
+      // The additional arguments of the preferences are the ones of Vitest.
+      arguments.addAll(Arrays.asList(DebugPlugin.parseArguments(substitute(Preferences.getString(Preferences.ARGUMENTS)))));
+    }
     arguments.addAll(Arrays.asList(
         DebugPlugin.parseArguments(substitute(configuration.getAttribute(VitestLaunchConstants.ATTR_ARGUMENTS, "")))));
 
     return new VitestLaunchSettings(root, installation, node, filters, selectors,
         configuration.getAttribute(VitestLaunchConstants.ATTR_NAME_PATTERN, ""),
         configuration.getAttribute(VitestLaunchConstants.ATTR_UPDATE_SNAPSHOTS, false), arguments, environment);
+  }
+
+  private static String noFramework(File location) {
+    return "No test framework found for " + location + ": install Vitest, Jest, Mocha, Jasmine or Playwright Test"
+        + " (npm install), or choose the framework of the launch configuration (Run > Run Configurations...).";
+  }
+
+  private static String notInstalled(TestFramework framework, File root) {
+    if (framework.isPackage()) {
+      return framework.label() + " is not installed in " + root + " (node_modules/" + framework.packageName()
+          + " is missing): run npm install, pnpm install or yarn there.";
+    }
+    return framework.label() + " was not found: install it, or set its location in Window > Preferences > EVitest.";
+  }
+
+  /** The executable of Bun or Deno set in the preferences, empty to search it. */
+  private static String executablePreference(TestFramework framework) throws CoreException {
+    return switch (framework) {
+      case BUN -> substitute(Preferences.getString(Preferences.BUN_PATH)).trim();
+      case DENO -> substitute(Preferences.getString(Preferences.DENO_PATH)).trim();
+      default -> "";
+    };
   }
 
   public static IProject getProject(ILaunchConfiguration configuration) throws CoreException {

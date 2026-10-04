@@ -51,6 +51,12 @@ class CoreTest {
     assertFalse(defaults.matches("math.ts"));
     assertFalse(defaults.matches("test.ts"));
     assertFalse(defaults.matches("math.test.ts.snap"));
+    // Jasmine, Deno, node:test.
+    assertTrue(defaults.matches("mathSpec.js"));
+    assertTrue(defaults.matches("math_test.ts"));
+    assertTrue(defaults.matches("math-test.mjs"));
+    assertFalse(defaults.matches("inspect.js"));
+    assertFalse(defaults.matches("latest.ts"));
     TestFilePatterns custom = new TestFilePatterns("*.unit.ts, check_*.js");
     assertTrue(custom.matches("a.unit.ts"));
     assertTrue(custom.matches("check_a.js"));

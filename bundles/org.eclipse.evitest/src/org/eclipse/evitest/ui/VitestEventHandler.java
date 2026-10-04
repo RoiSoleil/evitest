@@ -32,6 +32,8 @@ public class VitestEventHandler {
   private boolean sessionStarted;
   private boolean sessionEnded;
   private String vitestVersion;
+  private String framework;
+  private String frameworkVersion;
 
   public VitestEventHandler(ITestRunSession session) {
     this.session = session;
@@ -45,6 +47,16 @@ public class VitestEventHandler {
     return vitestVersion;
   }
 
+  /** The name of the test framework given by the reporter (Vitest, Jest...), null before its hello. */
+  public String getFramework() {
+    return framework;
+  }
+
+  /** The version of the test framework given by the reporter, null if it is not known. */
+  public String getFrameworkVersion() {
+    return frameworkVersion;
+  }
+
   /** Handles a line sent by the reporter. Lines which are not events are ignored. */
   public void handle(String line) {
     if (line.isBlank()) {
@@ -56,9 +68,10 @@ public class VitestEventHandler {
       return;
     }
     switch (type) {
-      case "hello" -> vitestVersion = Json.getString(event, "vitest");
+      case "hello" -> hello(event);
       case "runStart" -> startSession();
       case "module" -> addModule(event);
+      case "node" -> addNode(event);
       case "testStart" -> testStarted(Json.getString(event, "id"));
       case "testEnd" -> testEnded(event);
       case "suiteError" -> suiteFailed(event);
@@ -77,6 +90,30 @@ public class VitestEventHandler {
     sessionEnded = true;
     clearRunning();
     session.notifyTestSessionAborted(null, reason == null ? null : new IllegalStateException(reason));
+  }
+
+  private void hello(Map<String, Object> event) {
+    vitestVersion = Json.getString(event, "vitest");
+    // The reporter of Vitest of the protocol 1 has no framework.
+    framework = Json.getString(event, "framework");
+    frameworkVersion = Json.getString(event, "version");
+    if (framework == null && vitestVersion != null) {
+      framework = "Vitest";
+      frameworkVersion = vitestVersion;
+    }
+  }
+
+  /** A test or a suite found while the tests run, added to its file or its suite. */
+  @SuppressWarnings("unchecked")
+  private void addNode(Map<String, Object> event) {
+    startSession();
+    ITestElement parent = elements.get(Json.getString(event, "parent"));
+    TestElementData parentData = data.get(Json.getString(event, "parent"));
+    if (!(parent instanceof ITestSuiteElement suite) || parentData == null
+        || TestElementData.TEST.equals(parentData.kind()) || !(event.get("node") instanceof Map<?, ?> node)) {
+      return;
+    }
+    addNode((Map<String, Object>) node, suite, parentData.file(), parentData.project());
   }
 
   private void startSession() {
@@ -99,7 +136,7 @@ public class VitestEventHandler {
     List<Map<String, Object>> children = Json.getObjects(event, "children");
     TestElementData moduleData = new TestElementData(TestElementData.MODULE, file, null, null, List.of(), project);
     String displayName = project == null ? name : name + " [" + project + "]";
-    ITestSuiteElement module = session.newTestSuite(id, name, Integer.valueOf(countTests(children)), null, displayName,
+    ITestSuiteElement module = session.newTestSuite(id, name, expectedCount(children), null, displayName,
         moduleData.toJson());
     elements.put(id, module);
     data.put(id, moduleData);
@@ -124,7 +161,7 @@ public class VitestEventHandler {
     }
     if (suite) {
       List<Map<String, Object>> children = Json.getObjects(node, "children");
-      ITestSuiteElement element = session.newTestSuite(id, name, Integer.valueOf(countTests(children)), parent, name,
+      ITestSuiteElement element = session.newTestSuite(id, name, expectedCount(children), parent, name,
           nodeData.toJson());
       elements.put(id, element);
       for (Map<String, Object> child : children) {
@@ -133,6 +170,14 @@ public class VitestEventHandler {
     } else {
       elements.put(id, session.newTestCase(id, name, parent, name, nodeData.toJson()));
     }
+  }
+
+  /**
+   * The number of tests of a suite given with its children, null for a suite given without them (its tests are added
+   * while they run): the view counts them when they ended.
+   */
+  private static Integer expectedCount(List<Map<String, Object>> children) {
+    return children.isEmpty() ? null : Integer.valueOf(countTests(children));
   }
 
   private static int countTests(List<Map<String, Object>> nodes) {

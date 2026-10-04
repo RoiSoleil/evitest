@@ -1,0 +1,8 @@
+{
+  "name": "evitest-fixture-jasmine",
+  "private": true,
+  "description": "The Jasmine project run by the end to end tests of EVitest.",
+  "devDependencies": {
+    "jasmine": "7.0.0"
+  }
+}

@@ -36,8 +36,8 @@ class VitestPreferencePageTest extends SwtBotTest {
   @AfterEach
   void restoreThePreferences() {
     IPreferenceStore store = Preferences.store();
-    for (String key : new String[] { Preferences.NODE_PATH, Preferences.TEST_FILES, Preferences.ARGUMENTS,
-        Preferences.COLORS, Preferences.CODE_MININGS }) {
+    for (String key : new String[] { Preferences.NODE_PATH, Preferences.BUN_PATH, Preferences.DENO_PATH,
+        Preferences.TEST_FILES, Preferences.ARGUMENTS, Preferences.COLORS, Preferences.CODE_MININGS }) {
       store.setToDefault(key);
     }
   }
@@ -56,13 +56,24 @@ class VitestPreferencePageTest extends SwtBotTest {
     return shell;
   }
 
+  /** Sets the text of a field validated on the key strokes: its last character is typed. */
+  private static void typeAtTheEnd(SWTBotText field, String text) {
+    field.setText(text.substring(0, text.length() - 1));
+    UIThreadRunnable.syncExec(() -> field.widget.setSelection(field.widget.getText().length()));
+    field.typeText(text.substring(text.length() - 1));
+    assertEquals(text, field.getText());
+  }
+
   @Test
   void showsTheDefaultPreferences() {
     SWTBotShell shell = openPreferences();
-    Label description = shell.bot().widget(allOf(widgetOfType(Label.class), withRegex("(?s)Run the Vitest tests.*")));
+    Label description = shell.bot().widget(allOf(widgetOfType(Label.class), withRegex("(?s)Run the JavaScript tests.*")));
     String text = new SWTBotLabel(description).getText();
     assertTrue(text.contains("Node.js found: "), text);
+    assertTrue(text.contains("Jest") && text.contains("Deno") && text.contains("node:test"), text);
     assertEquals("", shell.bot().textWithLabel("Node.js:").getText());
+    assertEquals("", shell.bot().textWithLabel("Bun:").getText());
+    assertEquals("", shell.bot().textWithLabel("Deno:").getText());
     assertEquals(TestFilePatterns.DEFAULT, shell.bot().textWithLabel("Test files:").getText());
     assertEquals("", shell.bot().textWithLabel("Additional arguments of Vitest:").getText());
     assertTrue(shell.bot().checkBox("Colors in the console").isChecked());
@@ -115,8 +126,7 @@ class VitestPreferencePageTest extends SwtBotTest {
     SWTBotShell shell = openPreferences();
     // The field is validated on the key strokes.
     SWTBotText node = shell.bot().textWithLabel("Node.js:");
-    node.setText(new File("missing-nod").getAbsolutePath());
-    node.typeText("e");
+    typeAtTheEnd(node, new File("missing-node").getAbsolutePath());
     assertFalse(shell.bot().button("Apply and Close").isEnabled());
     // Blank: Node.js is searched on the PATH.
     node.setText("");
@@ -124,5 +134,28 @@ class VitestPreferencePageTest extends SwtBotTest {
     assertTrue(shell.bot().button("Apply and Close").isEnabled());
     shell.bot().button("Cancel").click();
     bot.waitUntil(Conditions.shellCloses(shell));
+  }
+
+  @Test
+  void savesTheExecutablesOfBunAndDeno() throws java.io.IOException {
+    File bun = File.createTempFile("bun", ".exe");
+    File deno = File.createTempFile("deno", ".exe");
+    try {
+      SWTBotShell shell = openPreferences();
+      SWTBotText bunText = shell.bot().textWithLabel("Bun:");
+      typeAtTheEnd(bunText, new File("missing-bun").getAbsolutePath());
+      // A missing executable is refused.
+      assertFalse(shell.bot().button("Apply and Close").isEnabled());
+      typeAtTheEnd(bunText, bun.getAbsolutePath());
+      shell.bot().textWithLabel("Deno:").setText(deno.getAbsolutePath());
+      assertTrue(shell.bot().button("Apply and Close").isEnabled());
+      shell.bot().button("Apply and Close").click();
+      bot.waitUntil(Conditions.shellCloses(shell));
+      assertEquals(bun.getAbsolutePath(), Preferences.getString(Preferences.BUN_PATH));
+      assertEquals(deno.getAbsolutePath(), Preferences.getString(Preferences.DENO_PATH));
+    } finally {
+      bun.delete();
+      deno.delete();
+    }
   }
 }

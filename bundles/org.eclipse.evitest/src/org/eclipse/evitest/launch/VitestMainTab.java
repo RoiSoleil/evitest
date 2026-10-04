@@ -16,6 +16,7 @@ import org.eclipse.debug.ui.AbstractLaunchConfigurationTab;
 import org.eclipse.debug.ui.DebugUITools;
 import org.eclipse.debug.ui.StringVariableSelectionDialog;
 import org.eclipse.evitest.Activator;
+import org.eclipse.evitest.core.TestFramework;
 import org.eclipse.evitest.core.TestSelector;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.layout.GridLayoutFactory;
@@ -25,6 +26,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.DirectoryDialog;
 import org.eclipse.swt.widgets.FileDialog;
@@ -36,10 +38,14 @@ import org.eclipse.ui.dialogs.ResourceSelectionDialog;
 import org.eclipse.unittest.ui.ConfigureViewerSupport;
 
 /**
- * The main tab of the Vitest launch configurations: what runs, where, and how.
+ * The main tab of the launch configurations of tests: what runs, with which framework, where, and how.
  */
 public class VitestMainTab extends AbstractLaunchConfigurationTab {
 
+  /** The first item of the frameworks: the framework is detected from the tests. */
+  static final String DETECTED = "Detected from the tests";
+
+  private Combo frameworkCombo;
   private Text projectText;
   private Text pathsText;
   private Text testsText;
@@ -64,7 +70,7 @@ public class VitestMainTab extends AbstractLaunchConfigurationTab {
     button(tests, "&Browse...", this::chooseProject);
     pathsText = labeledText(tests, "&Files and folders:", SWT.MULTI | SWT.V_SCROLL);
     ((GridData) pathsText.getLayoutData()).heightHint = 50;
-    pathsText.setToolTipText("One workspace path per line. All the tests of the folder of Vitest when empty.");
+    pathsText.setToolTipText("One workspace path per line. All the tests of the folder of the tests when empty.");
     button(tests, "&Add...", this::addPaths);
     testsText = labeledText(tests, "&Tests:", SWT.MULTI | SWT.V_SCROLL);
     ((GridData) testsText.getLayoutData()).heightHint = 40;
@@ -80,19 +86,32 @@ public class VitestMainTab extends AbstractLaunchConfigurationTab {
     GridDataFactory.fillDefaults().span(3, 1).applyTo(updateSnapshotsButton);
     updateSnapshotsButton.addListener(SWT.Selection, e -> updateLaunchConfigurationDialog());
 
-    Group environment = group(composite, "Vitest", 3);
-    rootText = labeledText(environment, "&Folder of Vitest:", SWT.SINGLE);
-    rootText.setMessage("Found from the tests: the folder of their vitest.config, vite.config or package.json");
+    Group environment = group(composite, "Framework", 3);
+    Label frameworkLabel = new Label(environment, SWT.NONE);
+    frameworkLabel.setText("Fra&mework:");
+    frameworkCombo = new Combo(environment, SWT.READ_ONLY);
+    frameworkCombo.add(DETECTED);
+    for (TestFramework framework : TestFramework.values()) {
+      frameworkCombo.add(framework.label());
+    }
+    frameworkCombo.select(0);
+    frameworkCombo.setToolTipText("The framework found from the imports of the test files, from the configuration files"
+        + " (vitest.config, jest.config, .mocharc, playwright.config...) or from the dependencies of package.json.");
+    GridDataFactory.fillDefaults().grab(true, false).applyTo(frameworkCombo);
+    frameworkCombo.addListener(SWT.Selection, e -> updateLaunchConfigurationDialog());
+    new Label(environment, SWT.NONE);
+    rootText = labeledText(environment, "&Folder of the tests:", SWT.SINGLE);
+    rootText.setMessage("Found from the tests: the folder of the configuration of their framework, or of package.json");
     Composite rootButtons = new Composite(environment, SWT.NONE);
     GridLayoutFactory.fillDefaults().numColumns(2).applyTo(rootButtons);
     button(rootButtons, "Br&owse...", this::chooseRoot);
     button(rootButtons, "&Variables...", () -> insertVariable(rootText));
     nodeText = labeledText(environment, "No&de.js:", SWT.SINGLE);
-    nodeText.setMessage("The one of the preferences, or the one found on the PATH");
+    nodeText.setMessage("The one of the preferences, or the one found on the PATH (not used by Bun and Deno)");
     button(environment, "B&rowse...", this::chooseNode);
     argumentsText = labeledText(environment, "&Arguments:", SWT.MULTI | SWT.WRAP | SWT.V_SCROLL);
     ((GridData) argumentsText.getLayoutData()).heightHint = 40;
-    argumentsText.setToolTipText("Additional arguments of Vitest, for instance --project=unit or --bail=1");
+    argumentsText.setToolTipText("Additional arguments of the framework, for instance --project=unit or --bail=1");
     button(environment, "Var&iables...", () -> insertVariable(argumentsText));
   }
 
@@ -162,7 +181,7 @@ public class VitestMainTab extends AbstractLaunchConfigurationTab {
 
   private void chooseRoot() {
     DirectoryDialog dialog = new DirectoryDialog(getShell());
-    dialog.setMessage("Choose the folder where Vitest runs (the folder of its configuration):");
+    dialog.setMessage("Choose the folder where the tests run (the folder of the configuration of their framework):");
     String folder = dialog.open();
     if (folder != null) {
       rootText.setText(folder);
@@ -207,6 +226,8 @@ public class VitestMainTab extends AbstractLaunchConfigurationTab {
   @Override
   public void initializeFrom(ILaunchConfiguration configuration) {
     try {
+      TestFramework framework = TestFramework.fromId(configuration.getAttribute(VitestLaunchConstants.ATTR_FRAMEWORK, ""));
+      frameworkCombo.select(framework == null ? 0 : framework.ordinal() + 1);
       projectText.setText(configuration.getAttribute(VitestLaunchConstants.ATTR_PROJECT, ""));
       pathsText.setText(String.join("\n",
           configuration.getAttribute(VitestLaunchConstants.ATTR_PATHS, Collections.emptyList())));
@@ -232,6 +253,9 @@ public class VitestMainTab extends AbstractLaunchConfigurationTab {
 
   @Override
   public void performApply(ILaunchConfigurationWorkingCopy configuration) {
+    int framework = frameworkCombo.getSelectionIndex();
+    configuration.setAttribute(VitestLaunchConstants.ATTR_FRAMEWORK,
+        framework <= 0 ? null : TestFramework.values()[framework - 1].id());
     configuration.setAttribute(VitestLaunchConstants.ATTR_PROJECT, emptyToNull(projectText.getText()));
     List<String> paths = lines(pathsText.getText());
     configuration.setAttribute(VitestLaunchConstants.ATTR_PATHS, paths.isEmpty() ? null : paths);
@@ -283,7 +307,7 @@ public class VitestMainTab extends AbstractLaunchConfigurationTab {
       }
     }
     if (project.isEmpty() && lines(pathsText.getText()).isEmpty() && rootText.getText().isBlank()) {
-      setErrorMessage("Choose the project, the tests or the folder of Vitest.");
+      setErrorMessage("Choose the project, the tests or the folder of the tests.");
       return false;
     }
     return true;
@@ -291,7 +315,7 @@ public class VitestMainTab extends AbstractLaunchConfigurationTab {
 
   @Override
   public String getName() {
-    return "Vitest";
+    return "Tests";
   }
 
   @Override

@@ -21,7 +21,7 @@ import org.eclipse.unittest.model.ITestRunSession;
  */
 public class VitestTestRunnerClient implements ITestRunnerClient {
 
-  /** How long the reader waits for the reporter once Vitest ended: the last events may still be in the socket. */
+  /** How long the reader waits for the reporter once the tests ended: the last events may still be in the socket. */
   private static final int GRACE_MILLIS = 2000;
 
   private final ITestRunSession session;
@@ -45,19 +45,19 @@ public class VitestTestRunnerClient implements ITestRunnerClient {
   }
 
   private static String launchName(ILaunch launch) {
-    return launch.getLaunchConfiguration() == null ? "Vitest" : launch.getLaunchConfiguration().getName();
+    return launch.getLaunchConfiguration() == null ? "the tests" : launch.getLaunchConfiguration().getName();
   }
 
   private void read() {
     try {
       if (server == null) {
-        handler.abort("The launch has no connection for the results of Vitest.");
+        handler.abort("The launch has no connection for the results of the tests.");
         return;
       }
       Socket connection = accept();
       if (connection == null) {
         if (!stopped) {
-          handler.abort("Vitest ended before running the tests: see the console for its errors.");
+          handler.abort("The tests ended before running: see the console for their errors.");
         }
         return;
       }
@@ -80,7 +80,7 @@ public class VitestTestRunnerClient implements ITestRunnerClient {
       }
     } finally {
       if (!handler.isSessionEnded()) {
-        handler.abort(stopped ? null : "Vitest ended before the end of the tests: see the console.");
+        handler.abort(stopped ? null : "The tests ended before their end: see the console.");
       }
       closeConnections();
     }

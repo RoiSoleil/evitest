@@ -23,8 +23,11 @@
 					<useUIHarness>true</useUIHarness>
 					<useUIThread>false</useUIThread>
 					<systemProperties>
-						<!-- The project run by the end to end tests ("npm ci" there first, else they are skipped). -->
-						<evitest.fixture>${project.basedir}/fixture</evitest.fixture>
+						<!--
+							The projects run by the end to end tests, one per framework ("npm ci" in the ones with a
+							package-lock.json first; Bun and Deno on the PATH): the others are skipped.
+						-->
+						<evitest.fixtures>${project.basedir}/fixtures</evitest.fixtures>
 					</systemProperties>
 				</configuration>
 			</plugin>

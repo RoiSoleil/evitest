@@ -1,0 +1,8 @@
+{
+  "name": "evitest-fixture-mocha",
+  "private": true,
+  "description": "The Mocha project run by the end to end tests of EVitest.",
+  "devDependencies": {
+    "mocha": "12.0.3"
+  }
+}

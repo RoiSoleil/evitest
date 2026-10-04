@@ -190,4 +190,115 @@ class JsTestScannerTest {
     assertEquals(source.length(), blocks.get(0).getEnd());
     assertFalse(blocks.get(0).getChildren().isEmpty());
   }
+
+  @Test
+  void mochaAndJasmine() {
+    String source = """
+        context('context', () => {
+          specify('specify', () => {})
+          xspecify('excluded', () => {})
+        })
+        fdescribe('focused', () => {
+          fit('focused test', () => {})
+          xit('excluded test', () => {})
+        })
+        xdescribe('excluded suite', () => {
+          xtest('excluded too', () => {})
+        })
+        xcontext('excluded context', () => {})
+        """;
+    assertEquals(List.of("S:context", "T:context > specify", "T:context > excluded", "S:focused",
+        "T:focused > focused test", "T:focused > excluded test", "S:excluded suite", "T:excluded suite > excluded too",
+        "S:excluded context"), all(source));
+  }
+
+  @Test
+  void playwright() {
+    String source = """
+        import { test, expect } from '@playwright/test'
+
+        test.use({ locale: 'fr-FR' })
+        test.describe.configure({ mode: 'serial' })
+        test.beforeEach(async ({ page }) => {})
+
+        test.describe('home', () => {
+          test.describe.serial('menu', () => {
+            test('opens', async ({ page }) => {
+              await test.step('click', async () => {})
+              test.skip(true, 'not on mobile')
+              test.skip(browserName === 'webkit', 'not on WebKit')
+              test.slow()
+            })
+          })
+          test.fixme('broken', async () => {})
+          test.describe.skip('later', () => {})
+        })
+        """;
+    assertEquals(List.of("S:home", "S:home > menu", "T:home > menu > opens", "T:home > broken", "S:home > later"),
+        all(source));
+  }
+
+  @Test
+  void deno() {
+    String source = """
+        Deno.test('simple', () => {})
+        Deno.test.ignore('ignored', () => {})
+        Deno.test.only("only", async () => {})
+        Deno.test({ name: 'object', fn() {} })
+        Deno.test({ permissions: { read: true }, name: `object ${2}`, fn: () => {} })
+        Deno.test({ fn: () => {} })
+        Deno.test('steps', async (t) => {
+          await t.step('first', async (t) => {
+            await t.step({ name: 'nested', fn: () => {} })
+          })
+          await t.step('second', () => {})
+        })
+        other.test('not deno', () => {})
+        x.Deno.test('not deno either', () => {})
+        """;
+    assertEquals(List.of("T:simple", "T:ignored", "T:only", "T:object", "T:object ${} (template)", "T:steps",
+        "T:steps > first", "T:steps > first > nested", "T:steps > second"), all(source));
+  }
+
+  @Test
+  void stepsAreNotTestsOutsideOfDeno() {
+    String source = """
+        test('playwright', async () => {
+          await test.step('a step', async () => {})
+          await t.step('not a deno step', () => {})
+        })
+        t.step('alone', () => {})
+        """;
+    assertEquals(List.of("T:playwright"), all(source));
+  }
+
+  @Test
+  void bun() {
+    String source = """
+        import { describe, test } from 'bun:test'
+        describe.if(isLinux)('on Linux', () => {
+          test.if(isLinux)('runs', () => {})
+          test.todoIf(isCI)('later on CI', () => {})
+          test.failing('fails', () => {})
+          test.each([1, 2])('adds %d', (n) => {})
+        })
+        """;
+    assertEquals(List.of("S:on Linux", "T:on Linux > runs", "T:on Linux > later on CI", "T:on Linux > fails",
+        "T:on Linux > adds %d (template)"), all(source));
+  }
+
+  @Test
+  void nodeTest() {
+    String source = """
+        import { describe, it, suite, test } from 'node:test'
+        suite('suite', () => {
+          test('test', async (t) => {
+            await t.test('subtest', () => {})
+          })
+          it.todo('todo')
+        })
+        """;
+    assertEquals(List.of("S:suite", "T:suite > test", "T:suite > todo"), all(source));
+  }
 }
+

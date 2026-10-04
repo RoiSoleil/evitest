@@ -20,6 +20,9 @@ Require-Bundle: org.eclipse.ui,
  org.eclipse.ui.ide,
  org.eclipse.ui.workbench.texteditor,
  org.eclipse.ui.console
+Import-Package: javax.xml.parsers,
+ org.w3c.dom,
+ org.xml.sax
 Automatic-Module-Name: org.eclipse.evitest
 Bundle-ActivationPolicy: lazy
 Bundle-Vendor: %pluginProvider
