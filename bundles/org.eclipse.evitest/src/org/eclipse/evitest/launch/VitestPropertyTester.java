@@ -1,6 +1,8 @@
 package org.eclipse.evitest.launch;
 
 import java.io.File;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.eclipse.core.expressions.PropertyTester;
 import org.eclipse.core.resources.IFile;
@@ -20,8 +22,19 @@ import org.eclipse.evitest.core.TestFramework;
  * <li>{@code org.eclipse.evitest.canLaunch}: a test file, or a folder or a project whose test framework is
  * installed.</li>
  * </ul>
+ * The properties are tested in the UI thread, many times for each menu (each item of the selection, Run As, Debug
+ * As...): they only look at files, never run a process, and their results are kept a few seconds.
  */
 public class VitestPropertyTester extends PropertyTester {
+
+  /** How long a result is kept: the files are read again for the next menus, after an npm install for example. */
+  private static final long CACHE_MILLIS = 3000;
+  private static final int CACHE_SIZE = 256;
+
+  private record Result(boolean hasTests, long time) {
+  }
+
+  private static final Map<File, Result> CACHE = new ConcurrentHashMap<>();
 
   @Override
   public boolean test(Object receiver, String property, Object[] args, Object expectedValue) {
@@ -43,6 +56,20 @@ public class VitestPropertyTester extends PropertyTester {
 
   /** True if a test framework is installed for the file or the folder. */
   private static boolean hasTests(File location) {
+    long now = System.currentTimeMillis();
+    Result cached = CACHE.get(location);
+    if (cached != null && now - cached.time() < CACHE_MILLIS) {
+      return cached.hasTests();
+    }
+    boolean hasTests = findTests(location);
+    if (CACHE.size() >= CACHE_SIZE) {
+      CACHE.clear();
+    }
+    CACHE.put(location, new Result(hasTests, now));
+    return hasTests;
+  }
+
+  private static boolean findTests(File location) {
     FrameworkDetector.Detection detection = FrameworkDetector.detect(location);
     if (detection == null) {
       return false;
@@ -57,10 +84,11 @@ public class VitestPropertyTester extends PropertyTester {
       case DENO -> Preferences.getString(Preferences.DENO_PATH);
       default -> "";
     };
-    return Installation.find(framework, detection.root(), environment(), executable) != null;
+    // Not Installation.find: it runs Bun and Deno for their version.
+    return Installation.isInstalled(framework, detection.root(), environment(), executable);
   }
 
-  private static java.util.Map<String, String> environment() {
+  private static Map<String, String> environment() {
     DebugPlugin debug = DebugPlugin.getDefault();
     return debug == null ? System.getenv() : debug.getLaunchManager().getNativeEnvironmentCasePreserved();
   }

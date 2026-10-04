@@ -66,6 +66,18 @@ public record Installation(TestFramework framework, File entry, String version) 
     return file == null ? null : new Installation(framework, file, NodeLocator.version(file));
   }
 
+  /**
+   * True if the framework is installed for the tests of the root, as {@link #find} finds it, without running anything:
+   * the version of Bun or Deno is not asked to the executable. For the user interface, which cannot wait for a process.
+   */
+  public static boolean isInstalled(TestFramework framework, File root, Map<String, String> environment,
+      String executable) {
+    if (framework.isPackage()) {
+      return find(framework, root, environment, executable) != null;
+    }
+    return framework == TestFramework.NODE || findExecutable(framework, root, environment, executable) != null;
+  }
+
   /** The executable of Bun or Deno, null if it is not found. */
   static File findExecutable(TestFramework framework, File root, Map<String, String> environment, String executable) {
     if (executable != null && !executable.isBlank()) {

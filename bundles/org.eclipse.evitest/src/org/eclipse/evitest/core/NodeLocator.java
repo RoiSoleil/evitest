@@ -1,12 +1,15 @@
 package org.eclipse.evitest.core;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,7 +61,8 @@ public final class NodeLocator {
 
   /**
    * The version printed by {@code executable --version} ({@code v22.1.0}, {@code 1.3.14}, {@code deno 2.9.6 ...}):
-   * its first numbers, null if they are not known. The versions are cached by executable and modification time.
+   * its first numbers, null if they are not known. The versions are cached by executable and modification time. It runs
+   * the executable (up to 10 seconds): never in the UI thread.
    */
   public static String version(File executable) {
     if (executable == null || !executable.isFile()) {
@@ -73,11 +77,13 @@ public final class NodeLocator {
     try {
       Process process = new ProcessBuilder(executable.getAbsolutePath(), "--version").redirectErrorStream(true).start();
       process.getOutputStream().close();
-      String output;
-      try (var input = process.getInputStream()) {
-        output = new String(input.readNBytes(4096), java.nio.charset.StandardCharsets.UTF_8);
-      }
-      if (process.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)) {
+      // Waits for the end before reading: reading first would block until the output closes, without a timeout. A
+      // version is a few lines, the pipe holds them.
+      if (process.waitFor(10, TimeUnit.SECONDS)) {
+        String output;
+        try (var input = process.getInputStream()) {
+          output = new String(input.readNBytes(4096), StandardCharsets.UTF_8);
+        }
         Matcher matcher = VERSION.matcher(output);
         if (matcher.find()) {
           version = matcher.group(1) + "." + matcher.group(2) + "." + matcher.group(3);
@@ -85,7 +91,7 @@ public final class NodeLocator {
       } else {
         process.destroyForcibly();
       }
-    } catch (java.io.IOException e) {
+    } catch (IOException e) {
       // Unknown version.
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
