@@ -14,6 +14,7 @@ import java.util.Map;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.Platform;
+import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.DebugPlugin;
@@ -201,18 +202,23 @@ public class VitestLaunchDelegate extends LaunchConfigurationDelegate {
 
       void ended(IDebugEventSetListener self) {
         DebugPlugin.getDefault().removeDebugEventListener(self);
-        if (beforeEnd != null) {
-          beforeEnd.run();
-        }
-        deleteQuietly(junitFolder);
-        ReporterServer.close(launch);
-        if (!launch.isTerminated() && launch.canTerminate()) {
-          try {
-            launch.terminate();
-          } catch (DebugException e) {
-            Activator.log(e);
+        // Not in the thread of the debug events, which would wait for the JUnit report to be read and sent.
+        Job job = Job.create("Ending " + launchName(launch), monitor -> {
+          if (beforeEnd != null) {
+            beforeEnd.run();
           }
-        }
+          deleteQuietly(junitFolder);
+          ReporterServer.close(launch);
+          if (!launch.isTerminated() && launch.canTerminate()) {
+            try {
+              launch.terminate();
+            } catch (DebugException e) {
+              Activator.log(e);
+            }
+          }
+        });
+        job.setSystem(true);
+        job.schedule();
       }
     };
     DebugPlugin.getDefault().addDebugEventListener(listener);
@@ -220,6 +226,10 @@ public class VitestLaunchDelegate extends LaunchConfigurationDelegate {
       // Ended before the listener was added.
       listener.handleDebugEvents(new DebugEvent[] { new DebugEvent(vitest, DebugEvent.TERMINATE) });
     }
+  }
+
+  private static String launchName(ILaunch launch) {
+    return launch.getLaunchConfiguration() == null ? "the tests" : launch.getLaunchConfiguration().getName();
   }
 
   private static int freePort() throws IOException {

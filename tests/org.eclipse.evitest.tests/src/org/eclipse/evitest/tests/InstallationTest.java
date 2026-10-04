@@ -1,6 +1,7 @@
 package org.eclipse.evitest.tests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -157,6 +158,32 @@ class InstallationTest {
     installed.delete();
     assertEquals(onPath, Installation.find(framework, root.toFile(),
         Map.of("PATH", root.resolve("path").toString()), null).entry());
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = TestFramework.class, names = { "BUN", "DENO" })
+  void isInstalledRunsNothing(TestFramework framework) throws IOException {
+    assumeFalse(NodeLocator.isWindows(), "Shell scripts");
+    // The menus test it in the UI thread: the executable is found, never run.
+    File ran = root.resolve("ran").toFile();
+    File script = write("bin/" + framework.id(), "#!/bin/sh\ntouch '" + ran + "'\necho 7.7.7\n");
+    assertTrue(script.setExecutable(true));
+    Map<String, String> path = Map.of("PATH", root.resolve("bin").toString());
+    assertTrue(Installation.isInstalled(framework, root.toFile(), path, null));
+    assertTrue(Installation.isInstalled(framework, root.toFile(), NO_PATH, script.getAbsolutePath()));
+    assertFalse(ran.exists());
+    assertFalse(Installation.isInstalled(framework, root.toFile(), path, root.resolve("missing").toString()));
+    // find gives the version: it runs the executable.
+    assertEquals("7.7.7", Installation.find(framework, root.toFile(), path, null).version());
+    assertTrue(ran.exists());
+  }
+
+  @Test
+  void isInstalledFindsThePackagesAndNode() throws IOException {
+    assertTrue(Installation.isInstalled(TestFramework.NODE, root.toFile(), NO_PATH, null));
+    assertFalse(Installation.isInstalled(TestFramework.JEST, root.toFile(), NO_PATH, null));
+    write("node_modules/jest/bin/jest.js", "");
+    assertTrue(Installation.isInstalled(TestFramework.JEST, root.toFile(), NO_PATH, null));
   }
 
   @Test
