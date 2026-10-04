@@ -131,6 +131,24 @@ class LaunchSettingsTest {
   }
 
   @Test
+  void aFileNotRefreshedYetIsFoundInItsProject() throws Exception {
+    IProject project = TestWorkspace.createProject("unrefreshed");
+    TestWorkspace.createFile(project, "package.json", "{ \"scripts\": { \"test\": \"node --test\" } }");
+    // Written outside of Eclipse: the workspace does not know it.
+    java.nio.file.Path test = project.getLocation().toFile().toPath().resolve("test/a.test.js");
+    java.nio.file.Files.createDirectories(test.getParent());
+    java.nio.file.Files.writeString(test, "import { test } from 'node:test'\n");
+    assertNull(project.findMember("test/a.test.js"));
+    assertEquals(test.toFile(), VitestLaunchSettings.toFile("/unrefreshed/test/a.test.js"));
+    VitestLaunchSettings settings = VitestLaunchSettings.resolve(configuration("unrefreshed", "/unrefreshed/test/a.test.js"));
+    assertEquals(TestFramework.NODE, settings.getFramework());
+    assertEquals(List.of("test/a.test.js"), settings.getFilters());
+    // A missing file stays missing.
+    assertEquals(new File("/unrefreshed/test/missing.test.js"),
+        VitestLaunchSettings.toFile("/unrefreshed/test/missing.test.js"));
+  }
+
+  @Test
   void errorsOfTheConfiguration() throws CoreException {
     CoreException nothing = assertThrows(CoreException.class, () -> VitestLaunchSettings.resolve(configuration("")));
     assertEquals("Choose the project or the tests to run.", message(nothing));

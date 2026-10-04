@@ -243,15 +243,29 @@ public final class VitestLaunchSettings {
     return project.exists() ? project : null;
   }
 
-  /** The location of a path of the launch configurations: a workspace path, or else a file system path. */
+  /**
+   * The location of a path of the launch configurations: a workspace path (also of a file not refreshed yet in its
+   * project), or else a file system path.
+   */
   public static File toFile(String path) {
     if (path == null || path.isBlank()) {
       return null;
     }
     IWorkspaceRoot workspaceRoot = ResourcesPlugin.getWorkspace().getRoot();
-    IResource resource = workspaceRoot.findMember(IPath.fromPortableString(path));
+    IPath workspacePath = IPath.fromPortableString(path);
+    IResource resource = workspaceRoot.findMember(workspacePath);
     if (resource != null && resource.getLocation() != null) {
       return resource.getLocation().toFile();
+    }
+    if (workspacePath.segmentCount() > 1) {
+      // A file of a project which is not refreshed yet (created outside of Eclipse): the location of the project.
+      IProject project = workspaceRoot.getProject(workspacePath.segment(0));
+      if (project.isOpen() && project.getLocation() != null) {
+        File file = project.getLocation().append(workspacePath.removeFirstSegments(1)).toFile();
+        if (file.exists()) {
+          return file;
+        }
+      }
     }
     return new File(path);
   }
