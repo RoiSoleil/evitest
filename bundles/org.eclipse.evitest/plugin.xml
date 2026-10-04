@@ -114,6 +114,22 @@
       </key>
    </extension>
 
+   <!--
+      Run As in the context menus of the resources: the debug UI shows it for the launchable objects only, and
+      without JDT no plug-in makes the resources launchable. "class" is empty, as the one of the debug UI for the
+      editors (https://bugs.eclipse.org/396822).
+   -->
+   <extension
+         point="org.eclipse.core.runtime.adapters">
+      <factory
+            class=""
+            adaptableType="org.eclipse.core.resources.IResource">
+         <adapter
+               type="org.eclipse.debug.ui.actions.ILaunchable">
+         </adapter>
+      </factory>
+   </extension>
+
    <extension
          point="org.eclipse.core.expressions.propertyTesters">
       <propertyTester

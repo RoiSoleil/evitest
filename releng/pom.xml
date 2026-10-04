@@ -9,6 +9,8 @@
 		<tycho.version>5.0.4</tycho.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<eclipse-repo.url>https://download.eclipse.org/releases/latest</eclipse-repo.url>
+		<!-- SWTBot drives the workbench in the tests of the user interface -->
+		<swtbot-repo.url>https://download.eclipse.org/technology/swtbot/releases/4.3.0</swtbot-repo.url>
 		<jacoco.version>0.8.15</jacoco.version>
 		<!-- JaCoCo agent of the tests (set by jacoco:prepare-agent), used by tycho-surefire -->
 		<tycho.testArgLine></tycho.testArgLine>
@@ -17,6 +19,11 @@
 		<repository>
 			<id>eclipse-release</id>
 			<url>${eclipse-repo.url}</url>
+			<layout>p2</layout>
+		</repository>
+		<repository>
+			<id>swtbot</id>
+			<url>${swtbot-repo.url}</url>
 			<layout>p2</layout>
 		</repository>
 	</repositories>

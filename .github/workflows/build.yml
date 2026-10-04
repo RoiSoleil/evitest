@@ -49,7 +49,10 @@ jobs:
          uses: actions/upload-artifact@v7
          with:
             name: surefire-reports
-            path: tests/org.eclipse.evitest.tests/target/surefire-reports
+            # With the screenshots of the failed SWTBot tests
+            path: |
+               tests/org.eclipse.evitest.tests/target/surefire-reports
+               tests/org.eclipse.evitest.tests/screenshots
       -  name: Release
          if: github.event_name == 'push'
          env:
