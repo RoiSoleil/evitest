@@ -77,9 +77,25 @@ public enum TestFramework {
     return packageName;
   }
 
-  /** The entry point of the command line of the framework in its package, null for the runtimes. */
+  /**
+   * The entry point of the command line of the framework in its package, as its package.json declared it when this
+   * version of EVitest was written: the installation reads the {@code bin} of package.json, this one is the fallback.
+   * Null for the runtimes.
+   */
   public String entry() {
     return entry;
+  }
+
+  /** The name of the command of the framework, in the {@code bin} of its package.json; null for the runtimes. */
+  public String command() {
+    return switch (this) {
+      case VITEST -> "vitest";
+      case JEST -> "jest";
+      case MOCHA -> "mocha";
+      case JASMINE -> "jasmine";
+      case PLAYWRIGHT -> "playwright";
+      default -> null;
+    };
   }
 
   /** The configuration files of the framework, relative to the folder where it runs. */

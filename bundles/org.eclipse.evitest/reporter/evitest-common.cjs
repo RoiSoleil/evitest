@@ -351,6 +351,56 @@ function packageVersion(name, folder) {
 }
 
 /**
+ * Makes the methods of a reporter safe: an exception (or a rejected promise) of the reporter of EVitest, for instance
+ * after a change of the API of a framework, is written to the console once per method and ignored, so that the tests
+ * of the user still run. The results in Eclipse may then be incomplete, never the run.
+ *
+ * @param {object} reporter the reporter, whose methods are wrapped in place
+ * @param {string} framework the name of the framework, for the messages
+ * @returns {object} the reporter
+ */
+function guard(reporter, framework) {
+  const reported = new Set()
+  const report = (name, error) => {
+    if (!reported.has(name)) {
+      reported.add(name)
+      process.stderr.write(`[EVitest] The reporter of EVitest for ${framework} failed in ${name}: `
+        + `${error?.stack ?? error}\nThe tests still run; their results in Eclipse may be incomplete.\n`)
+    }
+  }
+  const names = new Set(Object.getOwnPropertyNames(reporter))
+  for (let prototype = Object.getPrototypeOf(reporter); prototype && prototype !== Object.prototype;
+    prototype = Object.getPrototypeOf(prototype)) {
+    for (const name of Object.getOwnPropertyNames(prototype)) {
+      names.add(name)
+    }
+  }
+  for (const name of names) {
+    const method = reporter[name]
+    if (name === 'constructor' || typeof method !== 'function') {
+      continue
+    }
+    reporter[name] = function guarded(...args) {
+      try {
+        const result = method.apply(this, args)
+        return result && typeof result.then === 'function' ? result.catch(error => report(name, error)) : result
+      }
+      catch (error) {
+        report(name, error)
+        return undefined
+      }
+    }
+  }
+  return reporter
+}
+
+/** A function whose exceptions are written to the console and ignored (the listeners given to the frameworks). */
+function safe(framework, name, fn) {
+  const holder = guard({ [name]: fn }, framework)
+  return holder[name]
+}
+
+/**
  * Reports the crash of a framework which fails before its reporter starts (a test file which cannot be loaded makes
  * Mocha and Jasmine exit at once): the output of the process is kept, and sent to Eclipse as the error of the run when
  * the process exits without a run.
@@ -399,7 +449,9 @@ function reportCrashes(framework, version) {
 }
 
 module.exports = {
+  guard,
   reportCrashes,
+  safe,
   PROTOCOL_VERSION,
   Run,
   packageVersion,

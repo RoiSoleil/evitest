@@ -17,7 +17,7 @@ import org.eclipse.debug.core.model.IProcess;
 import org.eclipse.debug.core.model.IStreamMonitor;
 import org.eclipse.debug.core.model.IStreamsProxy;
 import org.eclipse.evitest.Activator;
-import org.eclipse.evitest.core.JUnitReport;
+import org.eclipse.evitest.core.frameworks.JUnitReport;
 import org.eclipse.evitest.core.TestFramework;
 
 /**

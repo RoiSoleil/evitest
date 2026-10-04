@@ -2,10 +2,12 @@
 
 // EVitest reporter of Playwright Test: streams the results of a run to Eclipse (see evitest-common.cjs).
 //
-// Playwright gives the tree of the tests when the run begins: the projects, the files, the describes and the tests.
-// A test runs once per project: its file is shown once per project, as the projects of Vitest.
+// Uses the documented reporter API of Playwright Test (https://playwright.dev/docs/api/class-reporter): onBegin with
+// the tree of the tests (the projects, the files, the describes, the tests: Suite and TestCase), onTestBegin,
+// onTestEnd (TestResult), onError, onEnd. A test runs once per project: its file is shown once per project, as the
+// projects of Vitest.
 
-const { Run, packageVersion, stripAnsi } = require('./evitest-common.cjs')
+const { Run, guard, packageVersion, stripAnsi } = require('./evitest-common.cjs')
 
 /** The errors of a test result of Playwright. */
 function resultErrors(result) {
@@ -31,6 +33,7 @@ class EVitestPlaywrightReporter {
       process.cwd())
     this.tests = new Map()
     this.errors = []
+    return guard(this, 'Playwright Test')
   }
 
   printsToStdio() {

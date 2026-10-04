@@ -3,8 +3,13 @@
 // Runs Mocha on the files chosen by Eclipse: node evitest-mocha-run.cjs <bin/mocha.js of the project> [arguments].
 //
 // Mocha adds the files of its command line to the "spec" of its configuration (.mocharc.*, package.json) instead of
-// replacing them: one test file could not run alone. When EVITEST_SPEC has the files to run (a JSON array), this
-// script gives Mocha the configuration of the project without its "spec", then the files.
+// replacing them (documented: https://mochajs.org/#spec): one test file could not run alone. When EVITEST_SPEC has the
+// files to run (a JSON array), this script gives Mocha the configuration of the project without its "spec", then the
+// files.
+//
+// The configuration is read by the functions loadRc and loadPkgRc of lib/cli/options of Mocha (marked public in its
+// sources, but not exported by its package). If they are missing or fail in a version of Mocha, the files are given
+// as the documented command line does: the spec of the configuration runs with them, and a warning says so.
 
 const fs = require('node:fs')
 const os = require('node:os')
@@ -22,16 +27,26 @@ function loadOptionsModule(mochaFolder) {
   return undefined
 }
 
-/** The configuration of the project (.mocharc.* over package.json) without its spec, null if there is none. */
+/**
+ * The configuration of the project (.mocharc.* over package.json) without its spec, null if it cannot be read with
+ * this version of Mocha.
+ */
 function configurationWithoutSpec(mochaFolder) {
-  const options = loadOptionsModule(mochaFolder)
-  if (!options) {
+  try {
+    const options = loadOptionsModule(mochaFolder)
+    if (typeof options?.loadRc !== 'function' || typeof options?.loadPkgRc !== 'function') {
+      return null
+    }
+    const configuration = { ...(options.loadPkgRc({}) ?? {}), ...(options.loadRc({}) ?? {}) }
+    delete configuration.spec
+    delete configuration._
+    // A configuration of JavaScript may have functions: they are not given to Mocha.
+    return JSON.parse(JSON.stringify(configuration))
+  }
+  catch (error) {
+    process.stderr.write(`[EVitest] The configuration of Mocha could not be read: ${error?.message ?? error}\n`)
     return null
   }
-  const configuration = { ...(options.loadPkgRc({}) ?? {}), ...(options.loadRc({}) ?? {}) }
-  delete configuration.spec
-  delete configuration._
-  return configuration
 }
 
 async function main() {
@@ -56,6 +71,10 @@ async function main() {
       fs.writeFileSync(file, JSON.stringify(configuration))
       process.on('exit', () => fs.rmSync(path.dirname(file), { recursive: true, force: true }))
       mochaArgs = ['--config', file, '--no-package', ...args]
+    }
+    else {
+      process.stderr.write('[EVitest] This version of Mocha is not known by EVitest: the spec files of its'
+        + ' configuration run with the chosen ones.\n')
     }
     mochaArgs = [...mochaArgs, ...files]
   }

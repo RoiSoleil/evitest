@@ -19,6 +19,7 @@ import java.util.stream.Stream;
 import org.eclipse.evitest.core.FrameworkDetector;
 import org.eclipse.evitest.core.FrameworkDetector.Detection;
 import org.eclipse.evitest.core.TestFramework;
+import org.eclipse.evitest.core.frameworks.FrameworkSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,6 +72,9 @@ class FrameworkDetectorTest {
       assertEquals(framework.label(), framework.toString());
       assertEquals(framework.isPackage(), framework.packageName() != null);
       assertEquals(framework.isPackage(), framework.entry() != null);
+      // Each framework has its command line, and the packages their command in package.json.
+      assertNotNull(FrameworkSupport.of(framework), framework.label());
+      assertEquals(framework.isPackage(), framework.command() != null);
     }
     assertNull(TestFramework.fromId("karma"));
     assertNull(TestFramework.fromId(""));

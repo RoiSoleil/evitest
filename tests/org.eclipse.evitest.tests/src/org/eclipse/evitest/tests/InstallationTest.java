@@ -80,6 +80,28 @@ class InstallationTest {
   }
 
   @Test
+  void theCommandOfPackageJsonWins() throws IOException {
+    // A new version moves its command line: package.json says where.
+    File moved = write("node_modules/jest/build/cli.js", "");
+    write("node_modules/jest/bin/jest.js", "");
+    write("node_modules/jest/package.json", "{ \"version\": \"31.0.0\", \"bin\": \"./build/cli.js\" }");
+    assertEquals(moved, Installation.find(TestFramework.JEST, root.toFile(), NO_PATH, null).entry());
+    File playwright = write("node_modules/@playwright/test/lib/cli.mjs", "");
+    write("node_modules/@playwright/test/package.json",
+        "{ \"version\": \"2.0.0\", \"bin\": { \"other\": \"other.js\", \"playwright\": \"lib/cli.mjs\" } }");
+    assertEquals(playwright, Installation.find(TestFramework.PLAYWRIGHT, root.toFile(), NO_PATH, null).entry());
+    // A command which does not exist: the entry known by EVitest.
+    File mocha = write("node_modules/mocha/bin/mocha.js", "");
+    write("node_modules/mocha/package.json", "{ \"bin\": { \"mocha\": \"missing.js\" } }");
+    assertEquals(mocha, Installation.find(TestFramework.MOCHA, root.toFile(), NO_PATH, null).entry());
+    // A broken package.json.
+    File jasmine = write("node_modules/jasmine/bin/jasmine.js", "");
+    write("node_modules/jasmine/package.json", "{ broken");
+    assertEquals(jasmine, Installation.find(TestFramework.JASMINE, root.toFile(), NO_PATH, null).entry());
+    assertNull(Installation.find(TestFramework.JASMINE, root.toFile(), NO_PATH, null).version());
+  }
+
+  @Test
   void aPackageWithoutItsEntryIsNotInstalled() throws IOException {
     write("node_modules/jest/package.json", "{ \"version\": \"30.0.0\" }");
     assertNull(Installation.find(TestFramework.JEST, root.toFile(), NO_PATH, null));
@@ -119,6 +141,11 @@ class InstallationTest {
     assertEquals(npm, Installation.find(framework, root.resolve("src").toFile(), NO_PATH, "").entry());
     assertEquals("1.2.3", Installation.find(framework, root.resolve("src").toFile(), NO_PATH, null).version());
     npm.delete();
+    // The npm package of Bun installs bin/bun.exe, also on Linux and macOS.
+    File exe = executable(framework == TestFramework.BUN ? "node_modules/bun/bin/bun.exe" : "node_modules/deno/deno.exe",
+        "3.0.0");
+    assertEquals(exe, Installation.find(framework, root.resolve("src").toFile(), NO_PATH, null).entry());
+    exe.delete();
     // In BUN_INSTALL or DENO_INSTALL.
     File installed = executable("install/bin/" + name, "v2.0.0");
     String variable = framework == TestFramework.BUN ? "BUN_INSTALL" : "DENO_INSTALL";

@@ -3,6 +3,7 @@
 // EVitest reporter of the test runner of Node.js (node --test): streams the results to Eclipse (see
 // evitest-common.cjs).
 //
+// Uses the documented events of the custom reporters of Node.js (https://nodejs.org/api/test.html#custom-reporters).
 // The events test:start, test:pass and test:fail come in the order of the declarations of the tests, with their level
 // of nesting: the names of the suites of a test are the names of the tests started before it at the lower levels. A
 // test file which fails outside its tests (it cannot be loaded) is reported as a failed test named after the file,
@@ -55,46 +56,65 @@ module.exports = async function * evitestNodeReporter(source) {
   run.start()
 
   for await (const event of source) {
-    const data = event.data ?? {}
-    switch (event.type) {
-      case 'test:stdout':
-      case 'test:stderr':
-        if (data.file) {
-          const state = stateOf(data)
-          if (state.output.length < 100_000) {
-            state.output += data.message ?? ''
-          }
-        }
-        break
-      case 'test:start':
-        if (data.file && !isFileTest(run, data)) {
-          started(run, stateOf(data), data)
-        }
-        else if (data.file) {
-          run.module(path.resolve(run.root, data.file))
-        }
-        break
-      case 'test:pass':
-      case 'test:fail':
-        if (!data.file) {
-          if (event.type === 'test:fail') {
-            errors.push(errorOf(data.details) ?? { name: 'Error', message: data.name })
-          }
-        }
-        else if (isFileTest(run, data)) {
-          if (event.type === 'test:fail') {
-            fileFailed(run, stateOf(data), data)
-          }
-        }
-        else {
-          ended(run, stateOf(data), data, event.type === 'test:pass')
-        }
-        break
-      default:
-        break
+    try {
+      handle(run, event, stateOf, errors)
+    }
+    catch (error) {
+      // An error of EVitest does not stop the tests: the reporter of Node.js would end the run.
+      warn(error)
     }
   }
   await run.end(errors)
+}
+
+let warned = false
+function warn(error) {
+  if (!warned) {
+    warned = true
+    process.stderr.write(`[EVitest] The reporter of EVitest for node:test failed: ${error?.stack ?? error}\n`
+      + 'The tests still run; their results in Eclipse may be incomplete.\n')
+  }
+}
+
+function handle(run, event, stateOf, errors) {
+  const data = event.data ?? {}
+  switch (event.type) {
+    case 'test:stdout':
+    case 'test:stderr':
+      if (data.file) {
+        const state = stateOf(data)
+        if (state.output.length < 100_000) {
+          state.output += data.message ?? ''
+        }
+      }
+      break
+    case 'test:start':
+      if (data.file && !isFileTest(run, data)) {
+        started(run, stateOf(data), data)
+      }
+      else if (data.file) {
+        run.module(path.resolve(run.root, data.file))
+      }
+      break
+    case 'test:pass':
+    case 'test:fail':
+      if (!data.file) {
+        if (event.type === 'test:fail') {
+          errors.push(errorOf(data.details) ?? { name: 'Error', message: data.name })
+        }
+      }
+      else if (isFileTest(run, data)) {
+        if (event.type === 'test:fail') {
+          fileFailed(run, stateOf(data), data)
+        }
+      }
+      else {
+        ended(run, stateOf(data), data, event.type === 'test:pass')
+      }
+      break
+    default:
+      break
+  }
 }
 
 function started(run, state, data) {

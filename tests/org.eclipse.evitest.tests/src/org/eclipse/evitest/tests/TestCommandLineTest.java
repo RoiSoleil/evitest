@@ -112,7 +112,7 @@ class TestCommandLineTest {
   void jasmine() {
     assumeFalse(NodeLocator.isWindows());
     assertEquals(List.of("/bin/node", entry(TestFramework.JASMINE), "src/a.test.ts", "src/deep/**/*[sS]pec.?(m|c)js",
-        "--reporter=" + reporter("evitest-jasmine.cjs"), "--filter=^math(?: | > )adds$", "--random=false"),
+        "--helper=" + reporter("evitest-jasmine.cjs"), "--filter=^math(?: | > )adds$", "--random=false"),
         commandLine(TestFramework.JASMINE).filters(List.of("src/a.test.ts", "src/deep/")).selectors(ONE_TEST)
             .arguments(List.of("--random=false")).build());
   }
@@ -167,7 +167,7 @@ class TestCommandLineTest {
     assumeFalse(NodeLocator.isWindows());
     File junit = new File("/tmp/junit.xml");
     assertEquals(List.of("/bin/bun", "test", "./src/a.test.ts", "/abs/b.test.ts", "--reporter=junit",
-        "--reporter-outfile=" + junit.getAbsolutePath(), "--test-name-pattern=^math(?: | > )adds$",
+        "--reporter-outfile=" + junit.getAbsolutePath(), "--test-name-pattern=(?:^| )math(?: | > )adds$",
         "--update-snapshots", "--bail"),
         commandLine(TestFramework.BUN).filters(List.of("src/a.test.ts", "/abs/b.test.ts")).junitReport(junit)
             .selectors(ONE_TEST).updateSnapshots(true).arguments(List.of("--bail")).build());

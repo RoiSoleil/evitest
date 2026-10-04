@@ -2,10 +2,12 @@
 
 // EVitest reporter of Jest: streams the results of a Jest run to Eclipse (see evitest-common.cjs).
 //
-// Jest gives the tests of a file when it runs it: onTestCaseStart and onTestCaseResult (Jest 29.6 and newer), then
-// onTestFileResult with all the results of the file, including the skipped tests and the errors of the file.
+// Uses the documented reporter API of Jest (https://jestjs.io/docs/configuration#custom-reporters): onRunStart,
+// onTestFileStart, onTestCaseStart and onTestCaseResult (Jest 29.6 and newer: without them, the results of a file
+// arrive with onTestFileResult), onTestFileResult, onRunComplete. The fields read are the ones of the AssertionResult
+// and TestResult types of @jest/test-result. failureDetails[].matcherResult (the values compared) is optional.
 
-const { Run, packageVersion, selectedPattern } = require('./evitest-common.cjs')
+const { Run, guard, packageVersion, selectedPattern } = require('./evitest-common.cjs')
 
 /** The error of a failed assertion result of Jest: its message with the stack, and the values compared. */
 function assertionErrors(result) {
@@ -32,8 +34,9 @@ function assertionErrors(result) {
 class EVitestJestReporter {
   constructor(globalConfig) {
     this.rootDir = globalConfig?.rootDir ?? process.cwd()
-    this.run = new Run('Jest', packageVersion('jest', this.rootDir), process.cwd())
+    this.run = new Run('Jest', packageVersion('jest', this.rootDir), this.rootDir)
     this.pattern = selectedPattern()
+    return guard(this, 'Jest')
   }
 
   onRunStart() {

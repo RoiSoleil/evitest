@@ -13,7 +13,18 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  # The frameworks of the fixtures of the end to end tests: their new versions are tested by the pull requests of
+  # Dependabot before the users get them.
   - package-ecosystem: "npm"
-    directory: "/tests/org.eclipse.evitest.tests/fixture"
+    directories:
+      - "/tests/org.eclipse.evitest.tests/fixtures/vitest"
+      - "/tests/org.eclipse.evitest.tests/fixtures/jest"
+      - "/tests/org.eclipse.evitest.tests/fixtures/mocha"
+      - "/tests/org.eclipse.evitest.tests/fixtures/jasmine"
+      - "/tests/org.eclipse.evitest.tests/fixtures/playwright"
     schedule:
       interval: "weekly"
+    groups:
+      frameworks:
+        patterns:
+          - "*"

@@ -28,24 +28,11 @@ jobs:
            key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
            restore-keys: |
              ${{ runner.os }}-maven-
-      -  name: Set up Node.js
-         uses: actions/setup-node@v7
+      -  name: Set up the frameworks
+         # Node.js, Bun, Deno and the frameworks of the fixtures, in their locked versions: the end to end tests run them.
+         uses: ./.github/actions/setup-frameworks
          with:
-            node-version: 22
-      -  name: Set up Bun
-         uses: oven-sh/setup-bun@v2
-      -  name: Set up Deno
-         uses: denoland/setup-deno@v2
-         with:
-            deno-version: v2.x
-      -  name: Install the fixtures of the end to end tests
-         # The end to end tests run the real frameworks of these projects with the reporters of EVitest:
-         # Vitest, Jest, Mocha, Jasmine and Playwright Test from npm; node:test, Bun and Deno need no install.
-         working-directory: tests/org.eclipse.evitest.tests/fixtures
-         run: |
-            for fixture in vitest jest mocha jasmine playwright; do
-               (cd "$fixture" && npm ci)
-            done
+            set: locked
       -  name: Build
          env:
             # All the frameworks are installed: their end to end tests must not be skipped.

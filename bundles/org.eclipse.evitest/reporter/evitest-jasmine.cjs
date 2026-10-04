@@ -1,38 +1,14 @@
 'use strict'
 
-// EVitest reporter of Jasmine: streams the results of a Jasmine run to Eclipse (see evitest-common.cjs). The
-// --reporter option of Jasmine replaces its console reporter: this reporter forwards the events to it.
+// EVitest reporter of Jasmine: streams the results of a Jasmine run to Eclipse (see evitest-common.cjs).
+//
+// A helper of Jasmine (--helper): it adds the reporter with the documented jasmine.getEnv().addReporter()
+// (https://jasmine.github.io/api/edge/Env.html#addReporter), next to the console reporter of Jasmine. The events are
+// the ones of the documented Reporter interface (https://jasmine.github.io/api/edge/Reporter.html): jasmineStarted,
+// suiteStarted, specStarted, specDone, suiteDone, jasmineDone, with the filename of the results (Jasmine 5 and newer:
+// without it, the tests are not shown).
 
-const path = require('node:path')
-const { Run, packageVersion, reportCrashes, selectedPattern } = require('./evitest-common.cjs')
-
-/** The console reporter of the installed Jasmine, undefined if it is not found. */
-function consoleReporter() {
-  const paths = [process.cwd()]
-  try {
-    paths.unshift(path.dirname(require.resolve('jasmine/package.json', { paths: [process.cwd()] })))
-  }
-  catch {
-    // Not found: the folder of the project.
-  }
-  // Jasmine 6 and newer, then the older ones.
-  for (const name of ['@jasminejs/reporters/console', 'jasmine/lib/reporters/console_reporter.js']) {
-    try {
-      const loaded = require(require.resolve(name, { paths }))
-      const ConsoleReporter = typeof loaded === 'function' ? loaded : loaded.ConsoleReporter ?? loaded.default
-      if (typeof ConsoleReporter === 'function') {
-        const reporter = new ConsoleReporter()
-        reporter.configure?.({})
-        reporter.setOptions?.({ print: (...args) => process.stdout.write(args.join('')), showColors: true })
-        return reporter
-      }
-    }
-    catch {
-      // The next one.
-    }
-  }
-  return undefined
-}
+const { Run, guard, packageVersion, reportCrashes, selectedPattern } = require('./evitest-common.cjs')
 
 /** The errors of the failed expectations of a spec or a suite. */
 function expectationErrors(failedExpectations) {
@@ -46,7 +22,9 @@ function expectationErrors(failedExpectations) {
       trace: `${message}\n${stack.split('\n').filter(line => /^\s+at\s/.test(line) && !line.includes('<Jasmine>')).join('\n')}`,
       matcherResult: expectation.matcherName ? {} : undefined,
     }
-    if (expectation.expected !== undefined || expectation.actual !== undefined) {
+    // Jasmine 5 gives empty values to the errors which are not comparisons.
+    if (expectation.matcherName && (expectation.expected !== undefined || expectation.actual !== undefined)
+      && !(expectation.expected === '' && expectation.actual === '')) {
       error.expected = expectation.expected
       error.actual = expectation.actual
     }
@@ -63,24 +41,13 @@ function notRun(result) {
 class EVitestJasmineReporter {
   constructor() {
     this.run = new Run('Jasmine', packageVersion('jasmine-core') ?? packageVersion('jasmine'), process.cwd())
-    this.console = consoleReporter()
     this.pattern = selectedPattern()
     this.suites = new Map()
     reportCrashes('Jasmine', this.run.version)
   }
 
-  forward(method, ...args) {
-    try {
-      return this.console?.[method]?.(...args)
-    }
-    catch {
-      return undefined
-    }
-  }
-
   jasmineStarted(info) {
     this.run.start()
-    return this.forward('jasmineStarted', info)
   }
 
   suiteStarted(result) {
@@ -89,14 +56,12 @@ class EVitestJasmineReporter {
     if (result.filename) {
       this.run.suite(result.filename, names)
     }
-    return this.forward('suiteStarted', result)
   }
 
   specStarted(result) {
     if (result.filename) {
       this.run.testStart(this.run.test(result.filename, this.names(result.parentSuiteId, result.description)))
     }
-    return this.forward('specStarted', result)
   }
 
   specDone(result) {
@@ -111,7 +76,6 @@ class EVitestJasmineReporter {
       this.run.testEnd(id, state, result.duration ?? undefined,
         state === 'failed' ? expectationErrors(result.failedExpectations) : undefined)
     }
-    return this.forward('specDone', result)
   }
 
   suiteDone(result) {
@@ -120,14 +84,9 @@ class EVitestJasmineReporter {
       // A failed beforeAll or afterAll.
       this.run.suiteError(this.run.suite(suite.file, suite.names), expectationErrors(result.failedExpectations))
     }
-    return this.forward('suiteDone', result)
   }
 
   async jasmineDone(result) {
-    const forwarded = this.forward('jasmineDone', result)
-    if (forwarded && typeof forwarded.then === 'function') {
-      await forwarded
-    }
     const errors = expectationErrors(result?.failedExpectations)
     await this.run.end(errors, result?.overallStatus === 'incomplete' && result.incompleteCode !== 'noSpecsFound'
       && result.incompleteReason && !/fit|fdescribe|focused/i.test(result.incompleteReason) ? 'interrupted' : undefined)
@@ -138,6 +97,11 @@ class EVitestJasmineReporter {
     const parent = parentSuiteId ? this.suites.get(parentSuiteId) : undefined
     return [...(parent?.names ?? []), description]
   }
+}
+
+// Loaded as a helper: Jasmine is the global "jasmine". Loaded by require() (the tests of EVitest): the class only.
+if (typeof jasmine !== 'undefined' && typeof jasmine.getEnv === 'function') {
+  jasmine.getEnv().addReporter(guard(new EVitestJasmineReporter(), 'Jasmine'))
 }
 
 module.exports = EVitestJasmineReporter

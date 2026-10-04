@@ -9,7 +9,7 @@ import java.io.File;
 import java.util.List;
 import java.util.Map;
 
-import org.eclipse.evitest.core.JUnitReport;
+import org.eclipse.evitest.core.frameworks.JUnitReport;
 import org.eclipse.evitest.core.Json;
 import org.eclipse.evitest.core.TestFramework;
 import org.eclipse.evitest.ui.TestElementData;
@@ -347,6 +347,60 @@ class JUnitReportTest {
     assertTrue(session.log.contains("failed src/math.test.ts > throws ERROR"), session.log.toString());
     assertTrue(session.log.contains("failed src/math.test.ts > math > compares objects FAILURE"), session.log.toString());
     assertTrue(session.element("src/math.test.ts > throws").getFailureTrace().getTrace().startsWith("TypeError: boom"));
+  }
+
+  /** The report of Bun 1.2: no nested suites, their names in the class names from the innermost one. */
+  private static final String BUN_1_2_XML = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <testsuites name="bun test" tests="5" assertions="3" failures="1" skipped="1" time="0.014999367">
+        <testsuite name="src/hooks.test.ts" tests="1" assertions="0" failures="1" skipped="0" time="0" hostname="vm">
+          <testcase name="never runs" classname="with a broken hook" time="0" file="src/hooks.test.ts" assertions="0">
+            <failure type="AssertionError" />
+          </testcase>
+        </testsuite>
+        <testsuite name="src/math.test.ts" tests="4" assertions="3" failures="0" skipped="1" time="0" hostname="vm">
+          <testcase name="one and one" classname="adds &amp;gt; math" time="0.000034324" file="src/math.test.ts" assertions="1" />
+          <testcase name="skipped" classname="math" time="0" file="src/math.test.ts" assertions="0">
+            <skipped />
+          </testcase>
+          <testcase name="doubles 2" classname="" time="0.000015813" file="src/math.test.ts" assertions="1" />
+        </testsuite>
+      </testsuites>
+      """;
+
+  @Test
+  void bun12() {
+    String output = """
+        src/hooks.test.ts:
+        error: hook failed
+              at <anonymous> (/p/src/hooks.test.ts:5:34)
+        (fail) with a broken hook > never runs [0.13ms]
+        """;
+    FakeSession session = handle(JUnitReport.toEvents(TestFramework.BUN, "1.2.0", ROOT, BUN_1_2_XML, output, null));
+    List<String> log = session.log;
+    assertTrue(log.contains("suite src/math.test.ts > math (null)"), log.toString());
+    assertTrue(log.contains("suite src/math.test.ts > math > adds (null)"), log.toString());
+    assertTrue(log.contains("ended src/math.test.ts > math > adds > one and one"), log.toString());
+    assertTrue(log.contains("ignored src/math.test.ts > math > skipped"), log.toString());
+    assertTrue(log.contains("ended src/math.test.ts > doubles 2"), log.toString());
+    assertTrue(log.contains("failed src/hooks.test.ts > with a broken hook > never runs ERROR"), log.toString());
+    assertTrue(session.element("src/hooks.test.ts > with a broken hook > never runs").getFailureTrace().getTrace()
+        .startsWith("Error: hook failed"));
+  }
+
+  @Test
+  void theColorsOfAReportAreRemoved() {
+    // Deno 2.0 writes the colors of the console in its report: not allowed in XML 1.0, raw or as references.
+    String xml = """
+        <testsuites><testsuite name="./a_test.ts">
+          <testcase name="throws" line="1" col="1"><failure message="Uncaught TypeError: boom">\u001b[0m\u001b[1m\u001b[31mTypeError\u001b[0m: boom&#27;[0m\u0007
+            at fn (file:///p/a_test.ts:2:9)&#x1b;[39m&#1;</failure></testcase>
+        </testsuite></testsuites>
+        """;
+    FakeSession session = handle(JUnitReport.toEvents(TestFramework.DENO, "2.0.0", ROOT, xml, "", null));
+    String trace = session.element("a_test.ts > throws").getFailureTrace().getTrace();
+    assertTrue(trace.startsWith("TypeError: boom"), trace);
+    assertFalse(trace.contains("\u001b"), trace);
   }
 }
 

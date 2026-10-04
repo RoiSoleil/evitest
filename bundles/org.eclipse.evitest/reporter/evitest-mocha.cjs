@@ -3,11 +3,13 @@
 // EVitest reporter of Mocha: streams the results of a Mocha run to Eclipse (see evitest-common.cjs), and prints the
 // tests in the console as the spec reporter of Mocha.
 //
-// Mocha loads all the files before running them: the tree of the tests is sent when the run begins, the tests not run
-// (excluded by --grep) are ended as skipped when it ends.
+// Uses the documented reporter API of Mocha (https://mochajs.org/api/tutorial-custom-reporter): the events of
+// Mocha.Runner.constants on the runner, the Spec reporter for the console, and the done() method of the reporters,
+// which Mocha awaits before exiting. Mocha loads all the files before running them: the tree of the tests is sent when
+// the run begins, the tests not run (excluded by --grep) are ended as skipped when it ends.
 
 const path = require('node:path')
-const { Run, packageVersion, selectedPattern } = require('./evitest-common.cjs')
+const { Run, packageVersion, safe, selectedPattern } = require('./evitest-common.cjs')
 
 /** Mocha, as loaded by the command line of the project. */
 function loadMocha() {
@@ -23,21 +25,23 @@ class EVitestMochaReporter {
     this.run = new Run('Mocha', packageVersion('mocha'), process.cwd())
     this.pattern = selectedPattern()
     this.ids = new Map()
+    // The listeners never throw: an error of EVitest does not stop the tests.
+    const on = (event, name, listener) => runner.on(event, safe('Mocha', name, listener))
 
-    runner.once(constants.EVENT_RUN_BEGIN, () => {
+    on(constants.EVENT_RUN_BEGIN, 'run begin', () => {
       this.run.start()
       this.sendTree(runner.suite, [])
     })
-    runner.on(constants.EVENT_TEST_BEGIN, (test) => {
+    on(constants.EVENT_TEST_BEGIN, 'test begin', (test) => {
       this.run.testStart(this.idOf(test))
     })
-    runner.on(constants.EVENT_TEST_PASS, (test) => {
+    on(constants.EVENT_TEST_PASS, 'test pass', (test) => {
       this.run.testEnd(this.idOf(test), 'passed', test.duration)
     })
-    runner.on(constants.EVENT_TEST_PENDING, (test) => {
+    on(constants.EVENT_TEST_PENDING, 'test pending', (test) => {
       this.run.testEnd(this.idOf(test), 'skipped')
     })
-    runner.on(constants.EVENT_TEST_FAIL, (test, error) => {
+    on(constants.EVENT_TEST_FAIL, 'test fail', (test, error) => {
       if (test.type === 'hook') {
         // A failed hook fails its suite; Mocha does not run the tests of the suite.
         const suite = test.parent
@@ -57,7 +61,15 @@ class EVitestMochaReporter {
 
   /** Mocha waits for this method before exiting: the connection is closed after the last event. */
   done(failures, callback) {
-    this.endRun().then(() => callback(failures), () => callback(failures))
+    let ended
+    try {
+      ended = this.endRun()
+    }
+    catch (error) {
+      ended = Promise.reject(error)
+    }
+    ended.catch(error => process.stderr.write(`[EVitest] The reporter of EVitest for Mocha failed: ${error?.stack ?? error}\n`))
+      .finally(() => callback(failures))
   }
 
   async endRun() {

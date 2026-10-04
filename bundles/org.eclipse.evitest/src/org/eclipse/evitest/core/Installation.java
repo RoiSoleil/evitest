@@ -37,7 +37,7 @@ public record Installation(TestFramework framework, File entry, String version) 
    * The installation of a framework for the tests of a root.
    * <ul>
    * <li>the npm packages: node_modules/&lt;package&gt; in the root or in one of its parents (the dependencies hoisted
-   * in a monorepo);</li>
+   * in a monorepo), run with the command of the {@code bin} of their package.json;</li>
    * <li>Bun and Deno: the executable set by the user, else the one installed by npm in node_modules, else the one of
    * the PATH, else the one of their installer ({@code ~/.bun/bin}, {@code ~/.deno/bin});</li>
    * <li>node:test: Node.js, found by the launch.</li>
@@ -48,16 +48,13 @@ public record Installation(TestFramework framework, File entry, String version) 
    */
   public static Installation find(TestFramework framework, File root, Map<String, String> environment,
       String executable) {
-    if (framework == TestFramework.VITEST) {
-      VitestLocator.Installation vitest = VitestLocator.findInstallation(root);
-      return vitest == null ? null : new Installation(framework, vitest.entry(), vitest.version());
-    }
     if (framework.isPackage()) {
       for (File current = root; current != null; current = current.getParentFile()) {
         File folder = new File(current, "node_modules/" + framework.packageName());
-        File entry = new File(folder, framework.entry());
-        if (entry.isFile()) {
-          return new Installation(framework, entry, packageVersion(folder));
+        Map<String, Object> packageJson = readPackageJson(folder);
+        File entry = entry(framework, folder, packageJson);
+        if (entry != null) {
+          return new Installation(framework, entry, Json.getString(packageJson, "version"));
         }
       }
       return null;
@@ -78,8 +75,13 @@ public record Installation(TestFramework framework, File entry, String version) 
     String name = framework.id();
     List<File> npm = new ArrayList<>();
     for (File current = root; current != null; current = current.getParentFile()) {
-      // The executables installed by the npm packages "bun" and "deno".
-      npm.add(new File(current, framework == TestFramework.BUN ? "node_modules/bun/bin" : "node_modules/deno"));
+      // The executables installed by the npm packages "bun" (bin/bun.exe, on all the systems) and "deno".
+      File folder = new File(current, framework == TestFramework.BUN ? "node_modules/bun/bin" : "node_modules/deno");
+      File exe = new File(folder, name + ".exe");
+      if (exe.isFile() && exe.canExecute()) {
+        return exe;
+      }
+      npm.add(folder);
     }
     // After the PATH: the places of the installers of Bun and Deno.
     List<File> installers = new ArrayList<>();
@@ -91,15 +93,37 @@ public record Installation(TestFramework framework, File entry, String version) 
     return NodeLocator.findExecutable(name, environment, npm, installers);
   }
 
-  private static String packageVersion(File folder) {
+  /**
+   * The entry point of the command line of a package: the file of its command in the {@code bin} of its package.json
+   * (the documented way to find it), else the one known by EVitest. Null if there is none.
+   */
+  static File entry(TestFramework framework, File folder, Map<String, Object> packageJson) {
+    Object bin = packageJson.get("bin");
+    String path = null;
+    if (bin instanceof String single) {
+      path = single;
+    } else if (bin instanceof Map<?, ?> commands && commands.get(framework.command()) instanceof String command) {
+      path = command;
+    }
+    if (path != null) {
+      File file = new File(folder, path).toPath().normalize().toFile();
+      if (file.isFile()) {
+        return file;
+      }
+    }
+    File known = new File(folder, framework.entry());
+    return known.isFile() ? known : null;
+  }
+
+  private static Map<String, Object> readPackageJson(File folder) {
     File packageJson = new File(folder, "package.json");
     if (!packageJson.isFile()) {
-      return null;
+      return Map.of();
     }
     try {
-      return Json.getString(Json.parseObject(Files.readString(packageJson.toPath(), StandardCharsets.UTF_8)), "version");
-    } catch (IOException e) {
-      return null;
+      return Json.parseObject(Files.readString(packageJson.toPath(), StandardCharsets.UTF_8));
+    } catch (IOException | RuntimeException e) {
+      return Map.of();
     }
   }
 }

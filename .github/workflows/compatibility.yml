@@ -1,0 +1,82 @@
+name: compatibility
+# The end to end tests with the oldest and the newest supported versions of the frameworks, Node.js, Bun and Deno
+# (tests/org.eclipse.evitest.tests/fixtures/versions.json): a new version of a framework which breaks EVitest is found
+# here, every week, before the users find it. A scheduled run which fails opens an issue.
+on:
+   schedule:
+   -  cron: '17 5 * * 1'
+   workflow_dispatch:
+   pull_request:
+      paths:
+      -  bundles/org.eclipse.evitest/reporter/**
+      -  bundles/org.eclipse.evitest/src/org/eclipse/evitest/core/**
+      -  tests/org.eclipse.evitest.tests/fixtures/**
+      -  .github/actions/setup-frameworks/**
+      -  .github/workflows/compatibility.yml
+permissions:
+   contents: read
+   issues: write
+jobs:
+   compatibility:
+      name: ${{ matrix.set }} (Node.js ${{ matrix.node || 'of the set' }})
+      runs-on: ubuntu-latest
+      strategy:
+         fail-fast: false
+         matrix:
+            include:
+            -  set: minimum
+            -  set: latest
+               node: lts/*
+            -  set: latest
+      steps:
+      -  name: Checkout
+         uses: actions/checkout@v7
+      -  name: Set up JDK
+         uses: actions/setup-java@v6
+         with:
+            distribution: temurin
+            java-version: 21
+      -  name: Setup Maven
+         uses: stCarolas/setup-maven@v5
+         with:
+            maven-version: 3.9.16
+      -  name: Set up cache
+         uses: actions/cache@v6.1.0
+         with:
+            path: ~/.m2/repository
+            key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+            restore-keys: |
+               ${{ runner.os }}-maven-
+      -  name: Set up the frameworks
+         uses: ./.github/actions/setup-frameworks
+         with:
+            set: ${{ matrix.set }}
+            node-version: ${{ matrix.node }}
+      -  name: Run the tests
+         env:
+            # All the frameworks are installed: their end to end tests must not be skipped.
+            EVITEST_REQUIRE_FRAMEWORKS: true
+         run: xvfb-run -a mvn -B clean verify
+      -  name: Upload the test reports
+         if: failure()
+         uses: actions/upload-artifact@v7
+         with:
+            name: surefire-reports-${{ matrix.set }}-${{ strategy.job-index }}
+            path: |
+               tests/org.eclipse.evitest.tests/target/surefire-reports
+               tests/org.eclipse.evitest.tests/screenshots
+      -  name: Open an issue
+         if: failure() && github.event_name == 'schedule'
+         env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            TITLE: 'Compatibility: the ${{ matrix.set }} versions of the frameworks break EVitest'
+         run: |
+            # One issue per kind of failure, commented by the next runs.
+            run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            number=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number')
+            if [ -n "$number" ]; then
+               gh issue comment "$number" --body "Still failing: $run"
+            else
+               gh issue create --title "$TITLE" \
+                  --body "The compatibility build failed: $run (the versions: tests/org.eclipse.evitest.tests/fixtures/versions.json)."
+            fi

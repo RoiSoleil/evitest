@@ -104,7 +104,13 @@ class FrameworksEndToEndTest {
     // The location of the declaration, when the framework gives it.
     TestElementData data = TestElementData.parse(run.session().element(file + " > math > adds > one and one").getData());
     assertEquals(List.of("math", "adds", "one and one"), data.names());
-    assertEquals(declarationLine(framework), data.line());
+    String version = run.handler().getFrameworkVersion();
+    if (framework == TestFramework.BUN && version != null && version.matches("1\\.[0-2]\\..*")) {
+      // Bun 1.2 does not give the lines: the editor finds the test by its names.
+      assertNull(data.line());
+    } else {
+      assertEquals(declarationLine(framework), data.line());
+    }
     assertEquals(new File(Fixtures.fixture(framework), file).getCanonicalPath(), new File(data.file()).getCanonicalPath());
 
     String hooks = Fixtures.hooksFile(framework);

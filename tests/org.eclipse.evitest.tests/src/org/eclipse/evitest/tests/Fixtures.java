@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.eclipse.evitest.Activator;
 import org.eclipse.evitest.core.Installation;
-import org.eclipse.evitest.core.JUnitReport;
+import org.eclipse.evitest.core.frameworks.JUnitReport;
 import org.eclipse.evitest.core.NodeLocator;
 import org.eclipse.evitest.core.TestCommandLine;
 import org.eclipse.evitest.core.TestFramework;

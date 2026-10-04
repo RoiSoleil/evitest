@@ -1,0 +1,49 @@
+name: Set up the frameworks
+description: >-
+   Sets up Node.js, Bun and Deno and installs the frameworks of the fixtures of the end to end tests, in the versions of
+   tests/org.eclipse.evitest.tests/fixtures/versions.json.
+inputs:
+   set:
+      description: The versions to install, locked (the pull requests), minimum or latest.
+      required: true
+      default: locked
+   node-version:
+      description: A version of Node.js instead of the one of the set.
+      required: false
+      default: ''
+runs:
+   using: composite
+   steps:
+   -  name: Read the versions
+      id: versions
+      shell: bash
+      run: |
+         node -e '
+            const versions = require("./tests/org.eclipse.evitest.tests/fixtures/versions.json")
+            const set = process.argv[1]
+            for (const runtime of ["node", "bun", "deno"]) {
+               console.log(`${runtime}=${versions.runtimes[runtime][set]}`)
+            }
+         ' '${{ inputs.set }}' >> "$GITHUB_OUTPUT"
+   -  name: Set up Node.js
+      uses: actions/setup-node@v7
+      with:
+         node-version: ${{ inputs.node-version || steps.versions.outputs.node }}
+   -  name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+         bun-version: ${{ steps.versions.outputs.bun }}
+   -  name: Set up Deno
+      uses: denoland/setup-deno@v2
+      with:
+         deno-version: ${{ steps.versions.outputs.deno }}
+   -  name: Install the fixtures
+      shell: bash
+      working-directory: tests/org.eclipse.evitest.tests/fixtures
+      run: node install.mjs '${{ inputs.set }}'
+   -  name: Show the versions
+      shell: bash
+      run: |
+         node --version
+         bun --version
+         deno --version
