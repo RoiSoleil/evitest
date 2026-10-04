@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+
+   <!-- Launch configurations -->
+
+   <extension
+         point="org.eclipse.debug.core.launchConfigurationTypes">
+      <launchConfigurationType
+            id="org.eclipse.evitest.launchConfigurationType"
+            name="%launchConfigurationType.name"
+            delegate="org.eclipse.evitest.launch.VitestLaunchDelegate"
+            delegateName="%launchDelegate.name"
+            delegateDescription="%launchDelegate.description"
+            modes="run, debug"
+            public="true">
+      </launchConfigurationType>
+   </extension>
+
+   <extension
+         point="org.eclipse.debug.ui.launchConfigurationTypeImages">
+      <launchConfigurationTypeImage
+            id="org.eclipse.evitest.launchConfigurationTypeImage"
+            configTypeID="org.eclipse.evitest.launchConfigurationType"
+            icon="icons/evitest.png">
+      </launchConfigurationTypeImage>
+   </extension>
+
+   <extension
+         point="org.eclipse.debug.ui.launchConfigurationTabGroups">
+      <launchConfigurationTabGroup
+            id="org.eclipse.evitest.launchConfigurationTabGroup"
+            type="org.eclipse.evitest.launchConfigurationType"
+            class="org.eclipse.evitest.launch.VitestTabGroup">
+         <launchMode
+               mode="run"
+               description="%tabGroup.run">
+         </launchMode>
+         <launchMode
+               mode="debug"
+               perspective="org.eclipse.debug.ui.DebugPerspective"
+               description="%tabGroup.debug">
+         </launchMode>
+      </launchConfigurationTabGroup>
+   </extension>
+
+   <extension
+         point="org.eclipse.debug.ui.launchShortcuts">
+      <shortcut
+            id="org.eclipse.evitest.shortcut"
+            class="org.eclipse.evitest.launch.VitestLaunchShortcut"
+            label="%shortcut.label"
+            icon="icons/evitest.png"
+            modes="run, debug">
+         <contextualLaunch>
+            <enablement>
+               <with
+                     variable="selection">
+                  <count
+                        value="+">
+                  </count>
+                  <iterate
+                        ifEmpty="false"
+                        operator="and">
+                     <adapt
+                           type="org.eclipse.core.resources.IResource">
+                        <test
+                              property="org.eclipse.evitest.canLaunch"
+                              forcePluginActivation="true">
+                        </test>
+                     </adapt>
+                  </iterate>
+               </with>
+            </enablement>
+         </contextualLaunch>
+         <configurationType
+               id="org.eclipse.evitest.launchConfigurationType">
+         </configurationType>
+         <description
+               mode="run"
+               description="%shortcut.run">
+         </description>
+         <description
+               mode="debug"
+               description="%shortcut.debug">
+         </description>
+      </shortcut>
+   </extension>
+
+   <extension
+         point="org.eclipse.ui.bindings">
+      <!-- Alt+Shift+X V and Alt+Shift+D V, as Alt+Shift+X T for JUnit. -->
+      <key
+            commandId="org.eclipse.evitest.shortcut.run"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M2+M3+X V">
+      </key>
+      <key
+            commandId="org.eclipse.evitest.shortcut.debug"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M2+M3+D V">
+      </key>
+      <key
+            platform="carbon"
+            commandId="org.eclipse.evitest.shortcut.run"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+M3+X V">
+      </key>
+      <key
+            platform="carbon"
+            commandId="org.eclipse.evitest.shortcut.debug"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+M3+D V">
+      </key>
+   </extension>
+
+   <extension
+         point="org.eclipse.core.expressions.propertyTesters">
+      <propertyTester
+            id="org.eclipse.evitest.propertyTester"
+            namespace="org.eclipse.evitest"
+            properties="isTestFile,canLaunch"
+            type="org.eclipse.core.resources.IResource"
+            class="org.eclipse.evitest.launch.VitestPropertyTester">
+      </propertyTester>
+   </extension>
+
+   <!-- Unit Test view -->
+
+   <extension
+         point="org.eclipse.unittest.ui.unittestViewSupport">
+      <viewSupport
+            id="org.eclipse.evitest.viewSupport"
+            class="org.eclipse.evitest.ui.VitestTestViewSupport">
+      </viewSupport>
+   </extension>
+
+   <!-- Editors -->
+
+   <extension
+         point="org.eclipse.ui.workbench.texteditor.codeMiningProviders">
+      <codeMiningProvider
+            id="org.eclipse.evitest.codeMiningProvider"
+            class="org.eclipse.evitest.ui.VitestCodeMiningProvider"
+            label="%codeMiningProvider.label">
+         <enabledWhen>
+            <with
+                  variable="editorInput">
+               <adapt
+                     type="org.eclipse.core.resources.IFile">
+                  <test
+                        property="org.eclipse.evitest.isTestFile"
+                        forcePluginActivation="true">
+                  </test>
+               </adapt>
+            </with>
+         </enabledWhen>
+      </codeMiningProvider>
+   </extension>
+
+   <!-- Consoles -->
+
+   <extension
+         point="org.eclipse.ui.console.consolePatternMatchListeners">
+      <consolePatternMatchListener
+            id="org.eclipse.evitest.consoleLinks"
+            class="org.eclipse.evitest.ui.ConsoleLinks"
+            regex="(?:file://)?/?(?:[A-Za-z]:)?[\w./\\@~+-]*\.(?:[cm]?[jt]sx?|vue|svelte|astro):\d+(?::\d+)?"
+            qualifier="\.(?:[cm]?[jt]sx?|vue|svelte|astro):\d">
+         <enablement>
+            <or>
+               <test
+                     property="org.eclipse.debug.ui.processTypeTest"
+                     value="vitest">
+               </test>
+               <test
+                     property="org.eclipse.ui.console.consoleTypeTest"
+                     value="org.eclipse.evitest.ui.StackTraceConsole">
+               </test>
+            </or>
+         </enablement>
+      </consolePatternMatchListener>
+   </extension>
+
+   <!-- Preferences -->
+
+   <extension
+         point="org.eclipse.core.runtime.preferences">
+      <initializer
+            class="org.eclipse.evitest.Preferences">
+      </initializer>
+   </extension>
+
+   <extension
+         point="org.eclipse.ui.preferencePages">
+      <page
+            id="org.eclipse.evitest.preferencePage"
+            name="%preferencePage.name"
+            class="org.eclipse.evitest.ui.VitestPreferencePage">
+      </page>
+   </extension>
+
+</plugin>

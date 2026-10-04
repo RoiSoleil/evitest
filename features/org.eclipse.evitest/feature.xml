@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="org.eclipse.evitest.feature"
+      label="EVitest"
+      version="1.0.0.qualifier"
+      provider-name="RoiSoleil">
+
+   <description url="https://github.com/RoiSoleil/evitest">
+      Runs the Vitest tests of JavaScript and TypeScript projects in Eclipse, with their results in the Unit Test view,
+like the JUnit tests.
+   </description>
+
+   <license url="https://www.eclipse.org/legal/epl-2.0/">
+      Eclipse Public License - v 2.0
+   </license>
+
+   <plugin
+         id="org.eclipse.evitest"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+</feature>

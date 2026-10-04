@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+   <feature id="org.eclipse.evitest.feature">
+      <category name="org.eclipse.evitest"/>
+   </feature>
+   <category-def name="org.eclipse.evitest" label="EVitest"/>
+</site>

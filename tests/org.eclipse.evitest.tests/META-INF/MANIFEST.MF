@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: EVitest Tests
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Bundle-SymbolicName: org.eclipse.evitest.tests
+Bundle-Version: 1.0.0.qualifier
+Fragment-Host: org.eclipse.evitest
+Require-Bundle: junit-jupiter-api;bundle-version="[5.9.0,6.0.0)"
+Automatic-Module-Name: org.eclipse.evitest.tests
+Bundle-Vendor: RoiSoleil
