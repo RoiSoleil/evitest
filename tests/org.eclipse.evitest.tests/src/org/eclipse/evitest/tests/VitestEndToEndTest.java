@@ -32,14 +32,14 @@ import org.junit.jupiter.api.Test;
 /**
  * Runs the real Vitest of the fixture project with the reporter, and checks what the Unit Test view receives.
  * <p>
- * Needs Node.js and the dependencies of the fixture ({@code npm ci} in {@code fixture}): skipped without them. The
- * fixture is found with the {@code evitest.fixture} system property (set by the build), the reporter with
+ * Needs Node.js and the dependencies of the fixture ({@code npm ci} in {@code fixtures/vitest}): skipped without them.
+ * The fixtures are found with the {@code evitest.fixtures} system property (set by the build), the reporter with
  * {@code evitest.reporter} or in the bundle.
  */
 class VitestEndToEndTest {
 
   private static File fixture() {
-    File fixture = new File(System.getProperty("evitest.fixture", "fixture"));
+    File fixture = new File(Fixtures.folder(), "vitest");
     assumeTrue(new File(fixture, "node_modules/vitest/vitest.mjs").isFile(),
         "The fixture has no node_modules: run npm ci in " + fixture.getAbsolutePath());
     return fixture;
@@ -119,7 +119,7 @@ class VitestEndToEndTest {
     assertTrue(log.contains("failed src/hooks.test.ts > with a broken hook ERROR"), log.toString());
     assertTrue(log.contains("ignored src/hooks.test.ts > with a broken hook > never runs"), log.toString());
     // A file which cannot be loaded fails without tests.
-    assertTrue(log.contains("suite src/broken.test.ts (0)"), log.toString());
+    assertTrue(log.contains("suite src/broken.test.ts (null)"), log.toString());
     assertTrue(log.contains("failed src/broken.test.ts ERROR"), log.toString());
 
     FakeSession.Element compares = session.element("src/math.test.ts > math > compares objects");

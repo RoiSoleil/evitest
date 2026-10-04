@@ -146,7 +146,7 @@ public record TestSelector(boolean suite, List<String> names, boolean template) 
    * Escapes the characters of a regular expression. {@link Pattern#quote(String)} is not used: its {@code \Q...\E} is
    * not understood by the regular expressions of JavaScript.
    */
-  static String escape(String text) {
+  public static String escape(String text) {
     StringBuilder escaped = new StringBuilder();
     for (int i = 0; i < text.length(); i++) {
       char c = text.charAt(i);

@@ -9,6 +9,10 @@
 	<artifactId>org.eclipse.evitest.tests</artifactId>
 	<version>1.0.0-SNAPSHOT</version>
 	<packaging>eclipse-test-plugin</packaging>
+	<properties>
+		<!-- The fixtures of the end to end tests: another folder with -Devitest.fixtures (other versions). -->
+		<evitest.fixtures>${project.basedir}/fixtures</evitest.fixtures>
+	</properties>
 	<build>
 		<plugins>
 			<plugin>
@@ -23,8 +27,13 @@
 					<useUIHarness>true</useUIHarness>
 					<useUIThread>false</useUIThread>
 					<systemProperties>
-						<!-- The project run by the end to end tests ("npm ci" there first, else they are skipped). -->
-						<evitest.fixture>${project.basedir}/fixture</evitest.fixture>
+						<!--
+							The projects run by the end to end tests, one per framework ("npm ci" in the ones with a
+							package-lock.json first; Bun and Deno on the PATH): the others are skipped.
+						-->
+						<evitest.fixtures>${evitest.fixtures}</evitest.fixtures>
+						<!-- The reporters and their tests, run with node test by ReportersTest. -->
+						<evitest.reporters>${project.basedir}/../../bundles/org.eclipse.evitest/reporter</evitest.reporters>
 					</systemProperties>
 				</configuration>
 			</plugin>

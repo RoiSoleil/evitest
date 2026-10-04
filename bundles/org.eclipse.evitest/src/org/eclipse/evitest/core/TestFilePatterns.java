@@ -11,8 +11,12 @@ import java.util.regex.Pattern;
  */
 public final class TestFilePatterns {
 
-  /** The test files of Vitest by default. */
-  public static final String DEFAULT = "*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}";
+  /**
+   * The test files by default: the ones of Vitest, Jest, Playwright, Bun ({@code *.test.ts}, {@code *.spec.ts}), of
+   * Jasmine ({@code *Spec.js}), of Deno ({@code *_test.ts}) and of node:test ({@code *-test.js}).
+   */
+  public static final String DEFAULT = "*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}, "
+      + "*{Spec,_test,-test}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}";
 
   private final List<Pattern> patterns;
 

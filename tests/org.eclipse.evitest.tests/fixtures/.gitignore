@@ -1,0 +1,6 @@
+node_modules/
+# Created by the SWTBot tests, which import the fixtures in their workspace
+.project
+# Written by Playwright Test
+test-results/
+playwright-report/

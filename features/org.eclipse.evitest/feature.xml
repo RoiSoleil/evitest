@@ -6,8 +6,8 @@
       provider-name="RoiSoleil">
 
    <description url="https://github.com/RoiSoleil/evitest">
-      Runs the Vitest tests of JavaScript and TypeScript projects in Eclipse, with their results in the Unit Test view,
-like the JUnit tests.
+      Runs the tests of JavaScript and TypeScript projects in Eclipse (Vitest, Jest, Mocha, Jasmine, Playwright Test,
+Deno, Bun and node:test), with their results in the Unit Test view, like the JUnit tests.
    </description>
 
    <license url="https://www.eclipse.org/legal/epl-2.0/">

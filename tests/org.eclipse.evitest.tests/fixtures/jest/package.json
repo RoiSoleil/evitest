@@ -1,0 +1,8 @@
+{
+  "name": "evitest-fixture-jest",
+  "private": true,
+  "description": "The Jest project run by the end to end tests of EVitest.",
+  "devDependencies": {
+    "jest": "30.5.2"
+  }
+}

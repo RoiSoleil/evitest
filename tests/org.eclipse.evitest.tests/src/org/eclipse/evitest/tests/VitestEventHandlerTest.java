@@ -129,7 +129,7 @@ class VitestEventHandlerTest {
         "{\"type\":\"suiteError\",\"id\":\"unknown\",\"errors\":[]}", //
         "{\"type\":\"runEnd\",\"reason\":\"failed\",\"errors\":[{\"name\":\"Error\",\"message\":\"late\","
             + "\"trace\":\"Error: late\"},{\"message\":\"second\"}]}");
-    assertEquals(List.of("started", "suite broken.test.ts (0)", "failed broken.test.ts ERROR",
+    assertEquals(List.of("started", "suite broken.test.ts (null)", "failed broken.test.ts ERROR",
         "test Unhandled errors", "start Unhandled errors", "failed Unhandled errors ERROR", "ended Unhandled errors",
         "completed"), session.log);
     assertEquals("broken.test.ts [unit]", session.element("broken.test.ts").getDisplayName());
@@ -152,5 +152,62 @@ class VitestEventHandlerTest {
     handler.abort("twice");
     assertTrue(handler.isSessionEnded());
     assertEquals(List.of("started", "aborted: Vitest crashed"), session.log);
+  }
+
+  @Test
+  void testsAddedWhileTheyRun() {
+    FakeSession session = new FakeSession();
+    VitestEventHandler handler = new VitestEventHandler(session);
+    for (String line : List.of( //
+        "{\"type\":\"hello\",\"protocol\":2,\"framework\":\"Jest\",\"version\":\"30.5.2\",\"root\":\"/p\"}", //
+        "{\"type\":\"runStart\"}", //
+        "{\"type\":\"module\",\"id\":\"f\",\"file\":\"/p/a.test.js\",\"name\":\"a.test.js\",\"project\":\"unit\",\"children\":[]}", //
+        "{\"type\":\"node\",\"parent\":\"f\",\"node\":{\"id\":\"s\",\"kind\":\"suite\",\"name\":\"math\",\"names\":[\"math\"],\"line\":1}}", //
+        "{\"type\":\"node\",\"parent\":\"s\",\"node\":{\"id\":\"t1\",\"kind\":\"test\",\"name\":\"adds\",\"names\":[\"math\",\"adds\"],\"line\":2,\"column\":3}}", //
+        "{\"type\":\"testStart\",\"id\":\"t1\"}", //
+        "{\"type\":\"testEnd\",\"id\":\"t1\",\"state\":\"passed\"}", //
+        "{\"type\":\"node\",\"parent\":\"s\",\"node\":{\"id\":\"t2\",\"kind\":\"test\",\"name\":\"later\",\"names\":[\"math\",\"later\"],\"mode\":\"todo\"}}", //
+        "{\"type\":\"testEnd\",\"id\":\"t2\",\"state\":\"skipped\"}", //
+        // Ignored: an unknown parent, a test as a parent, a node twice, a node without its node.
+        "{\"type\":\"node\",\"parent\":\"unknown\",\"node\":{\"id\":\"x\",\"kind\":\"test\",\"name\":\"x\",\"names\":[\"x\"]}}", //
+        "{\"type\":\"node\",\"parent\":\"t1\",\"node\":{\"id\":\"y\",\"kind\":\"test\",\"name\":\"y\",\"names\":[\"y\"]}}", //
+        "{\"type\":\"node\",\"parent\":\"s\",\"node\":{\"id\":\"t1\",\"kind\":\"test\",\"name\":\"adds\",\"names\":[\"math\",\"adds\"]}}", //
+        "{\"type\":\"node\",\"parent\":\"s\"}", //
+        "{\"type\":\"runEnd\",\"duration\":3}")) {
+      handler.handle(line);
+    }
+    assertEquals("Jest", handler.getFramework());
+    assertEquals("30.5.2", handler.getFrameworkVersion());
+    assertNull(handler.getVitestVersion());
+    assertEquals(List.of( //
+        "started", //
+        "suite a.test.js (null)", //
+        "suite a.test.js > math (null)", //
+        "test a.test.js > math > adds", //
+        "start a.test.js > math > adds", //
+        "ended a.test.js > math > adds", //
+        "test a.test.js > math > later", //
+        "start a.test.js > math > later", //
+        "ignored a.test.js > math > later", //
+        "completed"), session.log);
+    TestElementData adds = TestElementData.parse(session.element("a.test.js > math > adds").getData());
+    assertEquals("/p/a.test.js", adds.file());
+    assertEquals("unit", adds.project());
+    assertEquals(List.of("math", "adds"), adds.names());
+    assertEquals(Integer.valueOf(2), adds.line());
+    assertEquals(Integer.valueOf(3), adds.column());
+    assertEquals(TestResults.State.PASSED, TestResults.get("/p/a.test.js", TestSelector.test(List.of("math", "adds"))));
+    assertEquals(TestResults.State.SKIPPED, TestResults.get("/p/a.test.js", TestSelector.test(List.of("math", "later"))));
+  }
+
+  @Test
+  void theFrameworkOfTheReporterOfVitest() {
+    FakeSession session = new FakeSession();
+    VitestEventHandler handler = new VitestEventHandler(session);
+    assertNull(handler.getFramework());
+    handler.handle("{\"type\":\"hello\",\"protocol\":1,\"vitest\":\"5.0.3\",\"root\":\"/p\"}");
+    assertEquals("Vitest", handler.getFramework());
+    assertEquals("5.0.3", handler.getFrameworkVersion());
+    assertEquals("5.0.3", handler.getVitestVersion());
   }
 }

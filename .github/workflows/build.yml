@@ -28,15 +28,15 @@ jobs:
            key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
            restore-keys: |
              ${{ runner.os }}-maven-
-      -  name: Set up Node.js
-         uses: actions/setup-node@v7
+      -  name: Set up the frameworks
+         # Node.js, Bun, Deno and the frameworks of the fixtures, in their locked versions: the end to end tests run them.
+         uses: ./.github/actions/setup-frameworks
          with:
-            node-version: 22
-      -  name: Install the fixture of the end to end tests
-         # The end to end tests run the real Vitest of this project with the reporter of EVitest.
-         working-directory: tests/org.eclipse.evitest.tests/fixture
-         run: npm ci
+            set: locked
       -  name: Build
+         env:
+            # All the frameworks are installed: their end to end tests must not be skipped.
+            EVITEST_REQUIRE_FRAMEWORKS: true
          run: xvfb-run -a mvn -B clean install
       -  name: Upload coverage to Codecov
          if: always()

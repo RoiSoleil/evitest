@@ -6,8 +6,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Finds the tests ({@code it}, {@code test}, {@code bench}) and the suites ({@code describe}, {@code suite}) declared in
- * the source of a JavaScript or TypeScript test file, without running it.
+ * Finds the tests ({@code it}, {@code test}, {@code bench}...) and the suites ({@code describe}, {@code suite}...)
+ * declared in the source of a JavaScript or TypeScript test file, without running it: the ones of Vitest, Jest, Mocha
+ * ({@code context}, {@code specify}), Jasmine ({@code fdescribe}, {@code xit}...), Playwright Test
+ * ({@code test.describe}), Bun, node:test and Deno ({@code Deno.test}, its steps {@code t.step}).
  * <p>
  * It is a tokenizer, not a parser: it knows the strings, the template literals, the comments and the regular expressions
  * so that their content is not taken for code, and it recognizes the calls such as {@code describe('name', ...)},
@@ -26,6 +28,8 @@ public final class JsTestScanner {
     private int end;
     private final TestBlock parent;
     private final List<TestBlock> children = new ArrayList<>();
+    /** A test of Deno, or one of its steps. */
+    private boolean deno;
 
     TestBlock(boolean suite, String name, boolean template, int offset, int nameOffset, TestBlock parent) {
       this.suite = suite;
@@ -91,10 +95,18 @@ public final class JsTestScanner {
     }
   }
 
-  private static final Set<String> SUITE_FUNCTIONS = Set.of("describe", "suite");
-  private static final Set<String> TEST_FUNCTIONS = Set.of("it", "test", "bench");
+  private static final Set<String> SUITE_FUNCTIONS = Set.of("describe", "suite", "context", "fdescribe", "xdescribe",
+      "xcontext");
+  private static final Set<String> TEST_FUNCTIONS = Set.of("it", "test", "bench", "specify", "fit", "xit", "xtest",
+      "xspecify");
   /** Modifiers taking arguments before the call: {@code test.each(table)('name', ...)}. */
-  private static final Set<String> CALLED_MODIFIERS = Set.of("each", "for", "runIf", "skipIf", "extend", "scoped");
+  private static final Set<String> CALLED_MODIFIERS = Set.of("each", "for", "runIf", "skipIf", "extend", "scoped", "if",
+      "todoIf", "failingIf");
+  /** Properties of {@code test} which are not tests: {@code test.step('name', ...)} of Playwright, the hooks... */
+  private static final Set<String> NOT_TEST_MODIFIERS = Set.of("step", "use", "beforeEach", "afterEach", "beforeAll",
+      "afterAll", "info", "setTimeout", "configure", "expect");
+  /** Values which are not the name of a suite: {@code test.skip(true, 'reason')} of Playwright. */
+  private static final Set<String> LITERALS = Set.of("true", "false", "null", "undefined", "this");
   /** Modifiers building templates of names. */
   private static final Set<String> TEMPLATE_MODIFIERS = Set.of("each", "for");
   /** Keywords after which a slash starts a regular expression. */
@@ -407,16 +419,20 @@ public final class JsTestScanner {
       if (token.kind != Kind.IDENTIFIER) {
         continue;
       }
+      TestBlock parent = open.isEmpty() ? null : open.get(open.size() - 1);
+      boolean deno = isDenoTest(index) || (isDenoStep(index) && parent != null && parent.deno);
       boolean suite = SUITE_FUNCTIONS.contains(token.text);
-      if (!suite && !TEST_FUNCTIONS.contains(token.text)) {
+      if (!deno && !suite && !TEST_FUNCTIONS.contains(token.text)) {
         continue;
       }
-      if (index > 0 && (tokens.get(index - 1).is(".") || isDeclaration(index - 1))) {
+      if (!deno && index > 0 && (tokens.get(index - 1).is(".") || isDeclaration(index - 1))) {
         // A property (foo.test), or a declaration (function test()).
         continue;
       }
-      TestBlock parent = open.isEmpty() ? null : open.get(open.size() - 1);
       TestBlock block = readCall(index, suite, parent);
+      if (block != null) {
+        block.deno = deno;
+      }
       if (block != null) {
         if (parent == null) {
           roots.add(block);
@@ -427,6 +443,19 @@ public final class JsTestScanner {
       }
     }
     return roots;
+  }
+
+  /** True for the test of {@code Deno.test(...)} at index. */
+  private boolean isDenoTest(int index) {
+    return tokens.get(index).text.equals("test") && index >= 2 && tokens.get(index - 1).is(".")
+        && tokens.get(index - 2).kind == Kind.IDENTIFIER && tokens.get(index - 2).text.equals("Deno")
+        && (index < 3 || !tokens.get(index - 3).is("."));
+  }
+
+  /** True for the step of {@code t.step(...)} at index (a step of a test of Deno). */
+  private boolean isDenoStep(int index) {
+    return tokens.get(index).text.equals("step") && index >= 2 && tokens.get(index - 1).is(".")
+        && tokens.get(index - 2).kind == Kind.IDENTIFIER && (index < 3 || !tokens.get(index - 3).is("."));
   }
 
   private boolean isDeclaration(int index) {
@@ -445,6 +474,13 @@ public final class JsTestScanner {
     while (i + 1 < tokens.size() && tokens.get(i).is(".") && tokens.get(i + 1).kind == Kind.IDENTIFIER) {
       String modifier = tokens.get(i + 1).text;
       i += 2;
+      if (NOT_TEST_MODIFIERS.contains(modifier)) {
+        return null;
+      }
+      if (modifier.equals("describe")) {
+        // test.describe('name', ...) of Playwright.
+        suite = true;
+      }
       if (CALLED_MODIFIERS.contains(modifier)) {
         template |= TEMPLATE_MODIFIERS.contains(modifier);
         if (i < tokens.size() && tokens.get(i).kind == Kind.TEMPLATE) {
@@ -477,10 +513,20 @@ public final class JsTestScanner {
       case IDENTIFIER -> {
         // describe(MyClass, ...): Vitest names the suite after the function or the class.
         Token next = open + 2 < tokens.size() ? tokens.get(open + 2) : null;
-        if (next == null || !(next.is(",") || next.is(")"))) {
+        if (next == null || !(next.is(",") || next.is(")")) || LITERALS.contains(nameToken.text)) {
           return null;
         }
         name = nameToken.text;
+      }
+      case PUNCTUATOR -> {
+        // Deno.test({ name: 'name', fn() {...} }) and t.step({ name: 'name', ... }).
+        Token named = nameToken.is("{") && isDeno(function) ? objectName(open + 1) : null;
+        if (named == null) {
+          return null;
+        }
+        nameToken = named;
+        name = named.value;
+        nameTemplate = named.kind == Kind.TEMPLATE && named.complex;
       }
       default -> {
         return null;
@@ -493,6 +539,33 @@ public final class JsTestScanner {
       block.end = parent.end;
     }
     return block;
+  }
+
+  private boolean isDeno(Token function) {
+    int index = tokens.indexOf(function);
+    return index >= 0 && (isDenoTest(index) || isDenoStep(index));
+  }
+
+  /** The string of the {@code name} property of the object literal starting at index, null if there is none. */
+  private Token objectName(int index) {
+    int depth = 0;
+    for (int i = index; i < tokens.size(); i++) {
+      Token token = tokens.get(i);
+      if (token.is("(") || token.is("[") || token.is("{")) {
+        depth++;
+      } else if (token.is(")") || token.is("]") || token.is("}")) {
+        depth--;
+        if (depth == 0) {
+          return null;
+        }
+      } else if (depth == 1 && token.kind == Kind.IDENTIFIER && token.text.equals("name") && i + 2 < tokens.size()
+          && tokens.get(i + 1).is(":") && (tokens.get(i + 2).kind == Kind.STRING
+              || tokens.get(i + 2).kind == Kind.TEMPLATE)
+          && (i == index + 1 || tokens.get(i - 1).is(",") || tokens.get(i - 1).is("{"))) {
+        return tokens.get(i + 2);
+      }
+    }
+    return null;
   }
 
   /** Returns the index after the token closing the bracket at index, -1 if it is not closed. */

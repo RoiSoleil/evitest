@@ -19,6 +19,7 @@ import org.eclipse.debug.core.ILaunchConfigurationWorkingCopy;
 import org.eclipse.debug.ui.DebugUITools;
 import org.eclipse.debug.ui.IDebugUIConstants;
 import org.eclipse.debug.ui.ILaunchConfigurationDialog;
+import org.eclipse.evitest.core.TestFramework;
 import org.eclipse.evitest.core.TestSelector;
 import org.eclipse.evitest.launch.VitestLaunchConstants;
 import org.eclipse.evitest.tests.TestWorkspace;
@@ -33,7 +34,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Run > Run Configurations...: the Vitest launch configurations and their main tab.
+ * Run > Run Configurations...: the JavaScript Test launch configurations and their main tab.
  */
 class VitestLaunchConfigurationTest extends SwtBotTest {
 
@@ -76,14 +77,14 @@ class VitestLaunchConfigurationTest extends SwtBotTest {
   void createsAConfigurationInTheDialog() throws CoreException {
     SWTBotShell shell = openRunConfigurations();
     SWTBot dialog = shell.bot();
-    dialog.tree().getTreeItem("Vitest").select();
+    dialog.tree().getTreeItem("JavaScript Test").select();
     dialog.toolbarButtonWithTooltip("New launch configuration").click();
     dialog.textWithLabel("Name:").setText(NAME);
-    dialog.cTabItem("Vitest").activate();
+    dialog.cTabItem("Tests").activate();
 
     // Nothing to run yet.
     dialog.textWithLabel("Project:").setText("");
-    assertEquals("Choose the project, the tests or the folder of Vitest.", errorMessage(shell));
+    assertEquals("Choose the project, the tests or the folder of the tests.", errorMessage(shell));
     assertFalse(dialog.button("Run").isEnabled());
     dialog.textWithLabel("Project:").setText("missing");
     assertEquals("The project missing does not exist.", errorMessage(shell));
@@ -98,6 +99,10 @@ class VitestLaunchConfigurationTest extends SwtBotTest {
     dialog.textWithLabel("Tests:").setText("math > adds");
     dialog.checkBox("Update the snapshots (--update)").select();
     dialog.textWithLabel("Arguments:").setText("--bail=1");
+    // Detected from the tests by default.
+    assertEquals("Detected from the tests", dialog.comboBoxWithLabel("Framework:").selection());
+    assertEquals(TestFramework.values().length + 1, dialog.comboBoxWithLabel("Framework:").itemCount());
+    dialog.comboBoxWithLabel("Framework:").setSelection("Jest");
     dialog.button("Apply").click();
     close(shell);
 
@@ -110,6 +115,7 @@ class VitestLaunchConfigurationTest extends SwtBotTest {
     assertTrue(configuration.getAttribute(VitestLaunchConstants.ATTR_UPDATE_SNAPSHOTS, false));
     assertEquals("--bail=1", configuration.getAttribute(VitestLaunchConstants.ATTR_ARGUMENTS, ""));
     assertNull(configuration.getAttribute(VitestLaunchConstants.ATTR_ROOT, (String) null));
+    assertEquals("jest", configuration.getAttribute(VitestLaunchConstants.ATTR_FRAMEWORK, ""));
     assertArrayEquals(new IResource[] { test }, configuration.getMappedResources());
   }
 
@@ -123,19 +129,21 @@ class VitestLaunchConfigurationTest extends SwtBotTest {
         List.of(TestSelector.test(List.of("math", "adds")).toJson()));
     configuration.setAttribute(VitestLaunchConstants.ATTR_NAME_PATTERN, "ad+s");
     configuration.setAttribute(VitestLaunchConstants.ATTR_ROOT, "${project_loc:demo}");
+    configuration.setAttribute(VitestLaunchConstants.ATTR_FRAMEWORK, "deno");
     configuration.doSave();
 
     SWTBotShell shell = openRunConfigurations();
     SWTBot dialog = shell.bot();
-    SWTBotTreeItem item = dialog.tree().getTreeItem("Vitest").expand().getNode(NAME);
+    SWTBotTreeItem item = dialog.tree().getTreeItem("JavaScript Test").expand().getNode(NAME);
     item.select();
-    dialog.cTabItem("Vitest").activate();
+    dialog.cTabItem("Tests").activate();
     assertEquals("demo", dialog.textWithLabel("Project:").getText());
     assertEquals("/demo/src/math.test.ts", dialog.textWithLabel("Files and folders:").getText());
     assertEquals("math > adds", dialog.textWithLabel("Tests:").getText());
     assertEquals("ad+s", dialog.textWithLabel("Test name pattern:").getText());
-    assertEquals("${project_loc:demo}", dialog.textWithLabel("Folder of Vitest:").getText());
+    assertEquals("${project_loc:demo}", dialog.textWithLabel("Folder of the tests:").getText());
     assertFalse(dialog.checkBox("Update the snapshots (--update)").isChecked());
+    assertEquals("Deno", dialog.comboBoxWithLabel("Framework:").selection());
     assertNull(errorMessage(shell));
 
     // The tests which are not edited keep their selector (a test, not a suite).
@@ -146,5 +154,24 @@ class VitestLaunchConfigurationTest extends SwtBotTest {
     assertEquals(List.of(TestSelector.test(List.of("math", "adds")).toJson()),
         saved.getAttribute(VitestLaunchConstants.ATTR_SELECTORS, List.of()));
     assertEquals("", saved.getAttribute(VitestLaunchConstants.ATTR_NAME_PATTERN, ""));
+    assertEquals("deno", saved.getAttribute(VitestLaunchConstants.ATTR_FRAMEWORK, ""));
+  }
+
+  @Test
+  void backToTheDetectedFramework() throws CoreException {
+    ILaunchConfigurationWorkingCopy configuration = DebugPlugin.getDefault().getLaunchManager()
+        .getLaunchConfigurationType(VitestLaunchConstants.LAUNCH_CONFIGURATION_TYPE).newInstance(null, NAME);
+    configuration.setAttribute(VitestLaunchConstants.ATTR_PROJECT, "demo");
+    configuration.setAttribute(VitestLaunchConstants.ATTR_FRAMEWORK, "mocha");
+    configuration.doSave();
+    SWTBotShell shell = openRunConfigurations();
+    SWTBot dialog = shell.bot();
+    dialog.tree().getTreeItem("JavaScript Test").expand().getNode(NAME).select();
+    dialog.cTabItem("Tests").activate();
+    assertEquals("Mocha", dialog.comboBoxWithLabel("Framework:").selection());
+    dialog.comboBoxWithLabel("Framework:").setSelection("Detected from the tests");
+    dialog.button("Apply").click();
+    close(shell);
+    assertEquals("", TestWorkspace.findConfiguration(NAME).getAttribute(VitestLaunchConstants.ATTR_FRAMEWORK, ""));
   }
 }

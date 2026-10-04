@@ -3,12 +3,14 @@
 // Eclipse starts Vitest with this file as a custom reporter and the port of its listening socket in EVITEST_PORT.
 // Every event is one line of JSON. Without EVITEST_PORT the reporter does nothing, so it is harmless anywhere else.
 //
+// Uses the documented reporter API of Vitest (https://vitest.dev/advanced/reporters).
 // Vitest 3 and newer use the reported tasks API (onTestRunStart, onTestModuleCollected, onTestCaseResult...).
 // Vitest 1 and 2 only have the task API (onCollected, onTaskUpdate, onFinished): it is used when onTestRunStart is
 // never called. Vitest 3 calls both, the legacy hooks are then ignored.
 
 import net from 'node:net'
 import path from 'node:path'
+import common from './evitest-common.cjs'
 
 const PROTOCOL_VERSION = 1
 
@@ -128,6 +130,8 @@ export default class EVitestReporter {
     this.finished = new Set()
     this.failedSuites = new Set()
     this.startTime = Date.now()
+    // An error of EVitest (a change of the API of Vitest) does not stop the tests.
+    return common.guard(this, 'Vitest')
   }
 
   send(event) {
@@ -149,7 +153,10 @@ export default class EVitestReporter {
         }
       }
     }
-    this.send({ type: 'hello', protocol: PROTOCOL_VERSION, vitest: vitest?.version, root: toPosix(this.root) })
+    // Vitest 1 has no version on the Vitest object: the one of its package.
+    const version = vitest?.version ?? common.packageVersion('vitest', this.root)
+    this.send({ type: 'hello', protocol: PROTOCOL_VERSION, framework: 'Vitest', version, vitest: version,
+      root: toPosix(this.root) })
   }
 
   relativeFile(file) {

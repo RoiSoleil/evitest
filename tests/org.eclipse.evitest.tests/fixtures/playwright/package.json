@@ -1,0 +1,8 @@
+{
+  "name": "evitest-fixture-playwright",
+  "private": true,
+  "description": "The Playwright Test project run by the end to end tests of EVitest: no browser is needed.",
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

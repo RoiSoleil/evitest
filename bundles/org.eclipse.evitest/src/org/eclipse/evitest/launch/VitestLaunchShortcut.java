@@ -32,8 +32,8 @@ import org.eclipse.ui.texteditor.ITextEditor;
 import org.eclipse.unittest.ui.ConfigureViewerSupport;
 
 /**
- * Run As > Vitest Test: runs the selected test files, folders or projects, or in an editor the test or the suite at the
- * cursor (the whole file outside the tests).
+ * Run As > JavaScript Test: runs the selected test files, folders or projects with their test framework, or in an
+ * editor the test or the suite at the cursor (the whole file outside the tests).
  */
 public class VitestLaunchShortcut implements ILaunchShortcut2 {
 
@@ -41,7 +41,7 @@ public class VitestLaunchShortcut implements ILaunchShortcut2 {
   public void launch(ISelection selection, String mode) {
     List<IResource> resources = resources(selection);
     if (resources.isEmpty()) {
-      showError("Select test files, folders or a project to run with Vitest.");
+      showError("Select test files, folders or a project to run.");
       return;
     }
     launch(resources, null, mode);
@@ -193,6 +193,6 @@ public class VitestLaunchShortcut implements ILaunchShortcut2 {
 
   private static void showError(String message) {
     Display display = Display.getDefault();
-    display.asyncExec(() -> MessageDialog.openError(display.getActiveShell(), "Vitest", message));
+    display.asyncExec(() -> MessageDialog.openError(display.getActiveShell(), "EVitest", message));
   }
 }
