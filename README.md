@@ -75,6 +75,11 @@ mvn clean install   # update site in update-site/org.eclipse.evitest/target/repo
 The end to end tests run the real Vitest of [`tests/org.eclipse.evitest.tests/fixture`](tests/org.eclipse.evitest.tests/fixture):
 run `npm ci` there first, with Node.js on the `PATH`, else they are skipped.
 
+The [SWTBot](https://eclipse.dev/swtbot/) tests (`org.eclipse.evitest.tests.swtbot`) drive the workbench as a user:
+the preference page, the launch configurations, *Run As > Vitest Test* and the Unit Test view. They need a display:
+`xvfb-run -a mvn clean install` on a server. A failed SWTBot test saves a screenshot in
+`tests/org.eclipse.evitest.tests/screenshots`.
+
 JaCoCo measures the coverage of the plug-in by the tests; `tests/org.eclipse.evitest.coverage` writes the report in
 `target/site/jacoco-aggregate` and GitHub Actions sends it to [Codecov](https://codecov.io/gh/RoiSoleil/evitest).
 

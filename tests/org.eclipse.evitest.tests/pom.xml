@@ -16,8 +16,12 @@
 				<artifactId>tycho-surefire-plugin</artifactId>
 				<version>${tycho.version}</version>
 				<configuration>
-					<!-- No workbench: the tests run the model, the reporter and Vitest, not the views. -->
-					<useUIHarness>false</useUIHarness>
+					<!--
+						The SWTBot tests drive the workbench: they need a display (xvfb-run on a server), and
+						they run outside of the UI thread, which SWTBot waits on.
+					-->
+					<useUIHarness>true</useUIHarness>
+					<useUIThread>false</useUIThread>
 					<systemProperties>
 						<!-- The project run by the end to end tests ("npm ci" there first, else they are skipped). -->
 						<evitest.fixture>${project.basedir}/fixture</evitest.fixture>
