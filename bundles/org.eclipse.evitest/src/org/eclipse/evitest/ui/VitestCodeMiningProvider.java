@@ -62,7 +62,21 @@ public class VitestCodeMiningProvider extends AbstractCodeMiningProvider impleme
     return CompletableFuture.supplyAsync(() -> {
       List<ICodeMining> minings = new ArrayList<>();
       Set<Integer> lines = new HashSet<>();
-      for (TestBlock block : JsTestScanner.flatten(JsTestScanner.scan(source))) {
+      List<TestBlock> blocks = JsTestScanner.flatten(JsTestScanner.scan(source));
+      if (!blocks.isEmpty()) {
+        // At the top of the file, or with the first test when it is declared on the first line: one group per line.
+        int offset = lineOf(source, blocks.get(0).getOffset()) == 0 ? blocks.get(0).getOffset() : 0;
+        Position position = new Position(offset, 1);
+        try {
+          minings.add(new TestMining(position, this, "Run all", event -> launch(input, null,
+              ILaunchManager.RUN_MODE)));
+          minings.add(new TestMining(position, this, "Debug all", event -> launch(input, null,
+              ILaunchManager.DEBUG_MODE)));
+        } catch (BadLocationException e) {
+          // The document changed: the next update shows the minings.
+        }
+      }
+      for (TestBlock block : blocks) {
         try {
           // One group per line: two tests declared on the same line would draw over each other. The lines are counted
           // in the copy of the document, the document may change meanwhile.
