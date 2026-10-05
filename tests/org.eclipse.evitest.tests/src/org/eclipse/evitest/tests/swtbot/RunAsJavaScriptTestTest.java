@@ -27,10 +27,12 @@ import org.eclipse.swtbot.swt.finder.waits.DefaultCondition;
 import org.eclipse.swtbot.swt.finder.widgets.SWTBotMenu;
 import org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem;
 import org.eclipse.ui.IPageLayout;
+import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.ide.IDE;
 import org.eclipse.ui.texteditor.ITextEditor;
+import org.eclipse.unittest.model.ITestRunSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -75,11 +77,13 @@ class RunAsJavaScriptTestTest extends SwtBotTest {
 
   /** Waits for the end of the run: the tests ended and the view received all of them. */
   private static SWTBotView waitForTheEndOfTheRun() {
+    ILaunch[] launch = new ILaunch[1];
     bot.waitUntil(new DefaultCondition() {
       @Override
       public boolean test() {
         ILaunch[] launches = DebugPlugin.getDefault().getLaunchManager().getLaunches();
-        return launches.length > 0 && launches[0].isTerminated();
+        launch[0] = launches.length > 0 ? launches[0] : null;
+        return launch[0] != null && launch[0].isTerminated();
       }
 
       @Override
@@ -92,20 +96,47 @@ class RunAsJavaScriptTestTest extends SwtBotTest {
     bot.waitUntil(new DefaultCondition() {
       @Override
       public boolean test() {
-        String[] runs = runs(results);
-        return runs.length > 1 && !runs[1].equals("0") && runs[0].equals(runs[1]);
+        // The view shows the counters of the previous run until it refreshes them with the ones of this run.
+        // Errors and failures of the run, null while the view shows another run or this one is not over.
+        List<String> ended = UIThreadRunnable.syncExec(() -> {
+          ITestRunSession session = currentSession(results);
+          if (session == null || session.getLaunch() != launch[0]
+              || (Boolean) call(session, "isStarting") || (Boolean) call(session, "isRunning")) {
+            return null;
+          }
+          return List.of(String.valueOf(call(session, "getCurrentErrorCount")),
+              String.valueOf(call(session, "getCurrentFailureCount")));
+        });
+        if (ended == null) {
+          return false;
+        }
+        List<String> counters = counters(results);
+        String[] runs = counters.get(0).trim().split("[/ ]");
+        return runs.length > 1 && !runs[1].equals("0") && runs[0].equals(runs[1])
+            && counters.subList(1, 3).equals(ended);
       }
 
       @Override
       public String getFailureMessage() {
-        return "The Unit Test view did not receive the end of the run: " + String.join("/", runs(results));
+        return "The Unit Test view did not show the end of the run: " + counters(results);
       }
     });
     return results;
   }
 
-  private static String[] runs(SWTBotView results) {
-    return results.bot().textWithLabel("Runs: ").getText().trim().split("[/ ]");
+  /** The run shown by the view (in the UI thread), null if none. */
+  private static ITestRunSession currentSession(SWTBotView results) {
+    IWorkbenchPart view = results.getViewReference().getPart(false);
+    return view == null ? null : (ITestRunSession) call(view, "getCurrentTestRunSession");
+  }
+
+  /** Calls a method of the Unit Test view or of its run which is not API. */
+  private static Object call(Object object, String method) {
+    try {
+      return object.getClass().getMethod(method).invoke(object);
+    } catch (ReflectiveOperationException e) {
+      throw new IllegalStateException("No " + method + "() in " + object.getClass().getName(), e);
+    }
   }
 
   /** The counters of the view: runs, errors, failures. */
