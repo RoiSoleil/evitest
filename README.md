@@ -17,7 +17,7 @@ view of Eclipse, the one of JUnit, while the tests run. [Vitest](https://vitest.
 - **Run what you want**: a project, folders, test files (*Run As > JavaScript Test* or **Alt+Shift+X V**), or in an
   editor the test or the suite at the cursor (the whole file outside the tests).
 - **Run | Debug above each test and suite** in the editors, with the state of its last run: ✓ passed, ✗ failed,
-  ○ skipped, … running.
+  ○ skipped, … running. **Run all | Debug all** at the top of the file.
 - **Rerun** a test, a suite or a file from the view, or **only the failed tests**, in Run or Debug mode.
 - **Navigation**: a double click on a test opens it at its declaration; on a line of the stack trace, at that line
   (with the source maps of the framework: the line of the TypeScript source).
