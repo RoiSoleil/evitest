@@ -10,7 +10,10 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.Platform;
@@ -56,6 +59,14 @@ public class VitestLaunchDelegate extends LaunchConfigurationDelegate {
   public boolean buildForLaunch(ILaunchConfiguration configuration, String mode, IProgressMonitor monitor) {
     // The frameworks compile the tests themselves: building the workspace would only slow down the launch.
     return false;
+  }
+
+  @Override
+  protected IProject[] getBuildOrder(ILaunchConfiguration configuration, String mode) {
+    // Before the launch, Eclipse saves the editors of these projects. Without projects, it saves all the editors,
+    // also those which are not on a file and whose save closes them, like the editors of the terminals.
+    return Stream.of(ResourcesPlugin.getWorkspace().getRoot().getProjects()).filter(IProject::isAccessible)
+        .toArray(IProject[]::new);
   }
 
   @Override
