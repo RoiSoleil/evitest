@@ -11,7 +11,7 @@
 		<eclipse-repo.url>https://download.eclipse.org/releases/latest</eclipse-repo.url>
 		<!-- SWTBot drives the workbench in the tests of the user interface -->
 		<swtbot-repo.url>https://download.eclipse.org/technology/swtbot/releases/4.3.0</swtbot-repo.url>
-		<jacoco.version>0.8.15</jacoco.version>
+		<jacoco.version>0.8.16</jacoco.version>
 		<!-- JaCoCo agent of the tests (set by jacoco:prepare-agent), used by tycho-surefire -->
 		<tycho.testArgLine></tycho.testArgLine>
 	</properties>
